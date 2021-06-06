@@ -2,6 +2,7 @@ package me.wojnowski.googlecloud4s.auth
 
 import cats.effect.Clock
 import cats.effect.Sync
+import cats.effect.concurrent.Ref
 import io.circe.Json
 import io.circe.parser.decode
 import me.wojnowski.googlecloud4s.auth.TokenProvider.Error._
@@ -14,12 +15,15 @@ import java.util.Base64
 import java.util.concurrent.TimeUnit
 import scala.util.control.NoStackTrace
 import cats.syntax.all._
+import eu.timepit.refined.api.Refined
+import eu.timepit.refined.string.Uri
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import io.circe.syntax.EncoderOps
 import io.jsonwebtoken.Jwts
 import sttp.client3.SttpBackend
 
+import java.time.Duration
 import scala.util.control.NonFatal
 import java.util.{Map => JMap}
 import scala.jdk.CollectionConverters._
@@ -41,9 +45,27 @@ object TokenProvider {
     case class InvalidCredentials(cause: Throwable) extends Error
   }
 
+  def cachedInstance[F[_]: Clock: Sync](
+    credentials: Credentials,
+    expirationBuffer: Duration
+  )(
+    implicit sttpBackend: SttpBackend[F, Any]
+  ): F[TokenProvider[F]] =
+    for {
+      ref      <- Ref.of(Map.empty[Scope, Token])
+      instance <- instance[F](credentials)
+      now      <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+    } yield new TokenProvider[F] {
+
+      override def getToken(scope: Scope): F[Token] =
+        ref.get.map(_.get(scope).filter(_.expires.minus(expirationBuffer).isAfter(now))).flatMap {
+          case Some(token) => token.pure[F]
+          case None        => instance.getToken(scope).flatTap(token => ref.update(_.updated(scope, token)))
+        }
+    }
+
   def instance[F[_]: Clock: Sync](credentials: Credentials)(implicit sttpBackend: SttpBackend[F, Any]): F[TokenProvider[F]] = {
     implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
-
 
     def decodePrivateKey(keyFactory: KeyFactory, rawKey: String): F[RSAPrivateKey] =
       Sync[F].delay {
@@ -96,21 +118,24 @@ object TokenProvider {
                         }
                         .flatMap { response =>
                           response.body match {
-                            case Right(json) =>
+                            case Right(json)     =>
                               Sync[F]
                                 .fromEither(json.hcursor.downField("access_token").as[String])
                                 .adaptError {
                                   case NonFatal(error) => UnexpectedResponse(s"Couldn't decode response due to ${error.getMessage}")
                                 }
                                 .map(token => Token(token, scope, expiresAt))
-                            case Left(_)     =>
-                              UnexpectedResponse(s"Status: ${response.code.code}").raiseError[F, Token]
+                            case Left(exception) =>
+                              println(response)
+                              println(exception)
+                              logger.error(s"Failed to get access token for scope [$scope], HTTP status: ${response.code.code}") *>
+                                UnexpectedResponse(s"Status: ${response.code.code}").raiseError[F, Token]
                           }
                         }
         } yield token
       }
         .flatTap(_ => logger.info(s"Successfully got access token for scope [$scope]."))
-        .onError { case error => logger.error(s"Error while getting access token for scope [$scope] : $error!") }
+        .onError { case error => logger.error(s"Error while getting access token for scope [$scope]: $error!") }
 
       private def createJwt(scope: Scope, issuedAt: Instant, expires: Instant): F[String] =
         Sync[F].delay {
