@@ -1,9 +1,10 @@
 name := "googlecloud4s"
 
-ThisBuild / version := "0.1.0"
 ThisBuild / isSnapshot := false
 
 idePackagePrefix := Some("me.wojnowski.googlecloud4s")
+
+scalacOptions += "-Ypartial-unification"
 
 val Scala212 = "2.12.12"
 val Scala213 = "2.13.5"
@@ -16,11 +17,12 @@ val commonSettings = Seq(
   makePom / publishArtifact := true,
   publishMavenStyle := true,
   publishConfiguration := publishConfiguration.value.withOverwrite(true),
-  publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
+  publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true),
+  publishM2Configuration := publishM2Configuration.value.withOverwrite(true)
 )
 
 lazy val Versions = new {
-  val sttp = "3.2.3"
+  val sttp = "3.3.5"
 
   val cats = new {
     val core = "2.1.0" // TODO these are a bit outdated
@@ -41,7 +43,7 @@ lazy val core = (project in file("core"))
         libraryDependencies += "io.chrisdavenport" %% "log4cats-core" % Versions.log4cats,
         libraryDependencies += "io.chrisdavenport" %% "log4cats-slf4j" % Versions.log4cats,
         libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % Versions.sttp,
-        libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2" % Versions.sttp,
+        libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2-ce2" % Versions.sttp, // TODO is this required here?
         libraryDependencies += "com.softwaremill.sttp.client3" %% "circe" % Versions.sttp,
         libraryDependencies += "io.circe" %% "circe-core" % "0.13.0",
         libraryDependencies += "io.circe" %% "circe-generic" % "0.13.0",
@@ -76,9 +78,23 @@ lazy val storage = (project in file("storage"))
     )
   )
 
+lazy val firestore = (project in file("firestore"))
+  .dependsOn(core, auth)
+  .settings(
+    commonSettings ++ Seq(
+      name := "googlecloud4s-firestore",
+      libraryDependencies ++= List(
+        "co.fs2" %% "fs2-core",
+        "co.fs2" %% "fs2-io",
+      ).map(_ % "2.2.2")
+    )
+  )
+
+addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full)
+
 val root = project
   .in(file("."))
   .settings(
     publish / skip := true
   )
-  .aggregate(core, auth, storage)
+  .aggregate(core, auth, storage, firestore)
