@@ -31,6 +31,7 @@ import io.circe.generic.extras.semiauto
 import io.circe.generic.extras.semiauto.deriveUnwrappedCodec
 import io.circe.generic.extras.semiauto.deriveUnwrappedDecoder
 import io.circe.generic.semiauto.deriveDecoder
+import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
 import me.wojnowski.googlecloud4s.ProjectId
 import me.wojnowski.googlecloud4s.auth.Scope
 import me.wojnowski.googlecloud4s.auth.Token
@@ -40,7 +41,6 @@ import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields.M
 
 import java.util.concurrent.TimeUnit
 import scala.collection.immutable.SortedMap
-import scala.util.control.NoStackTrace
 
 trait Firestore[F[_]] {
   def add[V: FirestoreCodec](collection: Collection, value: V): F[String]
@@ -103,7 +103,7 @@ object Firestore {
     implicit val codec: Codec[Collection] = deriveUnwrappedCodec
   }
 
-  sealed trait Error extends NoStackTrace with Product with Serializable // TODO toString? Instead of getMessage
+  sealed trait Error extends ProductSerializableNoStacktrace
 
   object Error {
     case class AuthError(error: TokenProvider.Error) extends Error

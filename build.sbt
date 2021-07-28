@@ -59,10 +59,8 @@ lazy val auth = (project in file("auth"))
     commonSettings ++
       Seq(
         name := "googlecloud4s-auth",
-        libraryDependencies += "io.jsonwebtoken" % "jjwt-root" % "0.11.2",
-        libraryDependencies += "io.jsonwebtoken" % "jjwt-api" % "0.11.2",
-        libraryDependencies += "io.jsonwebtoken" % "jjwt-impl" % "0.11.2",
-        libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.4"
+        libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.4",
+        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "8.0.2"
       )
   )
 
@@ -85,7 +83,7 @@ lazy val firestore = (project in file("firestore"))
       name := "googlecloud4s-firestore",
       libraryDependencies ++= List(
         "co.fs2" %% "fs2-core",
-        "co.fs2" %% "fs2-io",
+        "co.fs2" %% "fs2-io"
       ).map(_ % "2.2.2")
     )
   )

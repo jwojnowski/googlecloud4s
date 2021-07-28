@@ -13,20 +13,19 @@ import java.security.spec.PKCS8EncodedKeySpec
 import java.time.Instant
 import java.util.Base64
 import java.util.concurrent.TimeUnit
-import scala.util.control.NoStackTrace
 import cats.syntax.all._
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.string.Uri
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import io.circe.syntax.EncoderOps
-import io.jsonwebtoken.Jwts
+import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
+import pdi.jwt.Jwt
+import pdi.jwt.JwtAlgorithm
+import pdi.jwt.JwtClaim
 import sttp.client3.SttpBackend
 
 import java.time.Duration
 import scala.util.control.NonFatal
-import java.util.{Map => JMap}
-import scala.jdk.CollectionConverters._
 
 trait TokenProvider[F[_]] {
   def getToken(scope: Scope): F[Token]
@@ -35,11 +34,13 @@ trait TokenProvider[F[_]] {
 object TokenProvider {
   implicit def apply[F[_]](implicit ev: TokenProvider[F]): TokenProvider[F] = ev
 
-  sealed trait Error extends NoStackTrace with Product with Serializable
+  sealed trait Error extends ProductSerializableNoStacktrace
 
   object Error {
     case class JwtCreationFailure(cause: Throwable) extends Error
+
     case class UnexpectedResponse(details: String) extends Error
+
     case class CommunicationError(cause: Throwable) extends Error
     case object AlgorithmNotFound extends Error
     case class InvalidCredentials(cause: Throwable) extends Error
@@ -62,6 +63,7 @@ object TokenProvider {
           case Some(token) => token.pure[F]
           case None        => instance.getToken(scope).flatTap(token => ref.update(_.updated(scope, token)))
         }
+
     }
 
   def instance[F[_]: Clock: Sync](credentials: Credentials)(implicit sttpBackend: SttpBackend[F, Any]): F[TokenProvider[F]] = {
@@ -91,7 +93,6 @@ object TokenProvider {
                  }
     } yield new TokenProvider[F] {
 
-      import java.util.Date
       import sttp.client3._
       import sttp.client3.circe._
 
@@ -116,19 +117,28 @@ object TokenProvider {
                         .adaptError {
                           case NonFatal(t) => CommunicationError(t)
                         }
+                        .onError {
+                          case throwable => logger.error(throwable)(s"Failed to get access token for scope [$scope] due to [$throwable]")
+                        }
                         .flatMap { response =>
                           response.body match {
                             case Right(json)     =>
                               Sync[F]
                                 .fromEither(json.hcursor.downField("access_token").as[String])
                                 .adaptError {
-                                  case NonFatal(error) => UnexpectedResponse(s"Couldn't decode response due to ${error.getMessage}")
+                                  case NonFatal(error) =>
+                                    UnexpectedResponse(s"Couldn't decode response due to ${error.getMessage}")
                                 }
                                 .map(token => Token(token, scope, expiresAt))
-                            case Left(exception) =>
-                              println(response)
-                              println(exception)
-                              logger.error(s"Failed to get access token for scope [$scope], HTTP status: ${response.code.code}") *>
+                                .onError {
+                                  case throwable =>
+                                    logger.trace(throwable)(s"Failed to get access token for scope [$scope]: [${response.body}]") *>
+                                      logger.error(throwable)(s"Failed to get access token for scope [$scope]")
+                                }
+                            case Left(throwable) =>
+                              logger.error(throwable)(
+                                s"Failed to get access token for scope [$scope], HTTP status: ${response.code.code}, response: [${response.body}]"
+                              ) *>
                                 UnexpectedResponse(s"Status: ${response.code.code}").raiseError[F, Token]
                           }
                         }
@@ -139,30 +149,18 @@ object TokenProvider {
 
       private def createJwt(scope: Scope, issuedAt: Instant, expires: Instant): F[String] =
         Sync[F].delay {
-          Jwts
-            .builder()
-            .setIssuer(credentials.clientEmail)
-            .setAudience(credentials.tokenUri.value)
-            .setIssuedAt(Date.from(issuedAt))
-            .setExpiration(Date.from(expires))
-            .claim("scope", scope.value)
-            .signWith(key)
-            .serializeToJsonWith(serializer)
-            .compact()
+          Jwt.encode(
+            JwtClaim(
+              expiration = Some(expires.getEpochSecond),
+              issuedAt = Some(issuedAt.getEpochSecond),
+              issuer = Some(credentials.clientEmail),
+              audience = Some(Set(credentials.tokenUri.value)),
+              content = s"""{"scope": "${scope.value}"}"""
+            ),
+            key,
+            JwtAlgorithm.RS256
+          )
         }
-
-      def serializer(map: JMap[String, _]): Array[Byte] =
-        map
-          .asScala
-          .map {
-            case (field, value: String) => field -> value.asJson
-            case (field, value: Long)   => field -> value.asJson
-            case (field, _)             => throw new IllegalArgumentException(s"Couldn't serialize field [$field]")
-          }
-          .toMap
-          .asJson
-          .noSpaces
-          .getBytes
     }
   }
 

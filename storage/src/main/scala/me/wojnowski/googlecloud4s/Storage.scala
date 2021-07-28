@@ -12,8 +12,6 @@ import sttp.capabilities.fs2.Fs2Streams
 import sttp.client3.SttpBackend
 import sttp.model.StatusCode
 
-import scala.util.control.NoStackTrace
-
 trait Storage[F[_]] {
   def put(bucket: Bucket, key: Key, stream: Stream[F, Byte], maybeContentLength: Option[Long] = None): F[Unit]
 
@@ -156,7 +154,7 @@ object Storage {
 
     }
 
-  case class UnexpectedResponseException(status: Int, message: String, headers: Map[String, String] = Map.empty) extends NoStackTrace {
+  case class UnexpectedResponseException(status: Int, message: String, headers: Map[String, String] = Map.empty) extends ProductSerializableNoStacktrace {
     override def toString: String = s"UnexpectedResponseException($status, $message, $headers)"
   }
 
