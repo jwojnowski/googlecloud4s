@@ -2,6 +2,7 @@ package me.wojnowski.googlecloud4s.firestore
 
 import cats.Functor
 import cats.Show
+import cats.data.Chain
 import cats.data.NonEmptyList
 import cats.data.NonEmptyMap
 import cats.effect.Clock
@@ -22,6 +23,7 @@ import me.wojnowski.googlecloud4s.firestore.FirestoreCodec.syntax._
 import cats.implicits._
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.collection.NonEmpty
+import fs2.Chunk
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import io.circe.Codec
@@ -57,12 +59,14 @@ trait Firestore[F[_]] {
   // TODO create some Query class
   def stream[V: FirestoreCodec](
     collection: Collection,
-    filter: List[FieldFilter] = List.empty
+    filter: List[FieldFilter] = List.empty,
+    pageSize: Int = 50
   ): Stream[F, (Name.FullyQualified, Either[Error.DecodingFailure, V])]
 
   def streamLogFailures[V: FirestoreCodec](
     collection: Collection,
-    fieldFilter: List[FieldFilter] = List.empty
+    fieldFilter: List[FieldFilter] = List.empty,
+    pageSize: Int = 50
   ): Stream[F, (Name.FullyQualified, V)]
 
   def delete[V](collection: Collection, name: Name): F[Unit]
@@ -388,19 +392,21 @@ object Firestore {
 
       override def stream[V: FirestoreCodec](
         collection: Collection,
-        fieldFilter: List[FieldFilter] = List.empty
+        fieldFilter: List[FieldFilter] = List.empty,
+        pageSize: Int = 50
       ): Stream[F, (Name.FullyQualified, Either[Error.DecodingFailure, V])] =
-        streamOfDocuments(collection, fieldFilter)
+        streamOfDocuments(collection, fieldFilter, pageSize)
           .map(document => document.name -> document.as[V].leftMap(Error.DecodingFailure))
 
       override def streamLogFailures[V: FirestoreCodec](
         collection: Collection,
-        fieldFilter: List[FieldFilter] = List.empty
+        fieldFilter: List[FieldFilter] = List.empty,
+        pageSize: Int = 50
       ): Stream[F, (Name.FullyQualified, V)] =
-        stream(collection, fieldFilter).flatMap {
+        stream(collection, fieldFilter, pageSize).flatMap {
           case (key, Right(value)) =>
             Stream.emit(key -> value)
-          case (name, Left(error))  =>
+          case (name, Left(error)) =>
             Stream
               .eval(
                 Logger[F].error(show"Couldn't decode [$name] due to error [${error.toString}]")
@@ -410,11 +416,10 @@ object Firestore {
 
       private def streamOfDocuments(
         collection: Collection,
-        fieldFilters: List[FieldFilter] = List.empty
+        fieldFilters: List[FieldFilter] = List.empty,
+        pageSize: Int
       ): Stream[F, FirestoreDocument] = {
-        val pageSize = 10
-
-        def fetchPage(offset: Int, limit: Int) = {
+        def fetchPage(maybeLastName: Option[Name.FullyQualified], limit: Int) = {
           def createRequestBody(instant: Instant): Json = {
             val where = fieldFilters.toNel.map { fieldFilters =>
               json"""
@@ -427,18 +432,33 @@ object Firestore {
                   """
             }
 
-            json"""
+            val query =
+              json"""
                 {
-                  "structuredQuery": {
                     "from": [
                       {
                         "collectionId": $collection
                       }
                     ],
-                    "offset": $offset,
                     "limit": $limit,
-                    "where": $where
-                  },
+                    "where": $where,
+                    "orderBy": [{"field": {"fieldPath": "__name__"}, "direction": "ASCENDING"}]
+                  }
+                """.deepMerge(
+                JsonObject
+                  .fromIterable(maybeLastName.map { lastKey =>
+                    "startAt" ->
+                      json"""{
+                        "values": [{"referenceValue": ${lastKey.full}}],
+                        "before": false
+                      }"""
+                  })
+                  .asJson
+              )
+
+            json"""
+                {
+                  "structuredQuery": $query,
                   "readTime": $instant
                 }
                 """
@@ -446,7 +466,8 @@ object Firestore {
 
           for {
             _       <- Logger[F].debug(
-                         s"Streaming part (offset: [$offset], limit: [$limit]) of collection [$collection] with filters [$fieldFilters]..."
+                         s"Streaming part (last document: [$maybeLastName], limit: [$limit])" +
+                           s"of collection [$collection] with filters [$fieldFilters]..."
                        )
             token   <- getToken.rethrow
             instant <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
@@ -465,7 +486,7 @@ object Firestore {
                            response.body match {
                              case Right(jsons)            =>
                                jsons
-                                 .as[List[JsonObject]]
+                                 .as[Chain[JsonObject]]
                                  .map(_.filter(_.contains("document")))
                                  .flatMap(_.traverse(_.asJson.hcursor.downField("document").as[FirestoreDocument])) match { // TODO this could use a refactor
                                  case Right(result) =>
@@ -473,32 +494,34 @@ object Firestore {
                                  case Left(error)   =>
                                    Error
                                      .UnexpectedResponse(
-                                       s"Couldn't decode streaming response due to [${error.getMessage}], full response: [$jsons]"
-                                     ) // TODO this shouldn't be listed probably
-                                     .raiseError[F, List[FirestoreDocument]]
+                                       s"Couldn't decode streaming response due to [${error.getMessage}]"
+                                     )
+                                     .raiseError[F, Chain[FirestoreDocument]]
                                }
                              case Left(responseException) =>
                                Error
                                  .UnexpectedResponse(responseException.getMessage)
-                                 .raiseError[F, List[FirestoreDocument]]
+                                 .raiseError[F, Chain[FirestoreDocument]]
                            }
                          }
           } yield result
         }.onError {
           case throwable =>
             Logger[F].error(throwable)(
-              s"Failed to stream part [offset: $offset, limit: $limit] of [$collection] with filters [$fieldFilters] due to $throwable"
+              s"Failed to stream part [last document name: [$maybeLastName], limit: [$limit] of [$collection] with filters [$fieldFilters] due to $throwable"
             )
         }
 
+        def fetchRecursively(maybeLastName: Option[Name.FullyQualified], pageSize: Int): Stream[F, FirestoreDocument] =
+          Stream.eval(fetchPage(maybeLastName, pageSize)).flatMap { batch =>
+            Stream.chunk(Chunk.chain(batch)) ++
+              batch
+                .lastOption
+                .fold[Stream[F, FirestoreDocument]](Stream.empty)(document => fetchRecursively(document.name.some, pageSize))
+          }
+
         Stream.eval(Logger[F].debug(s"Streaming collection [$collection] with filters [$fieldFilters]...")).flatMap { _ =>
-          Stream
-            .iterate(0)(_ + 1)
-            .evalMap { page =>
-              fetchPage(page * pageSize, pageSize)
-            }
-            .takeWhile(_.nonEmpty)
-            .flatMap(Stream.iterable)
+          fetchRecursively(maybeLastName = None, pageSize)
         }
       }
 
