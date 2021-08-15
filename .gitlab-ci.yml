@@ -7,9 +7,11 @@ test:
   stage: test
   script:
     - sbt clean +test scalafmtCheckAll +publishM2
+    - mkdir jars
+    - cp -r /root/.m2/repository/me/ jars/me/
   artifacts:
     paths:
-      - /root/.m2/repository/me/
+      - jars/
 
 publish:
   image: google/cloud-sdk
@@ -18,7 +20,7 @@ publish:
     - gcloud auth activate-service-account --key-file "$GCP_KEY_FILE"
     - gcloud config set project $GCP_PROJECT_ID
   script:
-    - gsutil -m cp -r /root/.m2/repository/me/ "gs://$GCP_PROJECT_ID-maven-repository"
+    - gsutil -m cp -r jars/me/ "gs://$GCP_PROJECT_ID-maven-repository"
   only:
     refs:
       - tags
