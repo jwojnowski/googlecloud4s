@@ -154,7 +154,8 @@ object Storage {
 
     }
 
-  case class UnexpectedResponseException(status: Int, message: String, headers: Map[String, String] = Map.empty) extends ProductSerializableNoStacktrace {
+  case class UnexpectedResponseException(status: Int, message: String, headers: Map[String, String] = Map.empty)
+    extends ProductSerializableNoStacktrace {
     override def toString: String = s"UnexpectedResponseException($status, $message, $headers)"
   }
 
