@@ -1,0 +1,24 @@
+stages:
+  - test
+  - publish
+
+test:
+  image: hseeberger/scala-sbt:graalvm-ce-21.2.0-java11_1.5.5_2.13.6
+  stage: test
+  script:
+    - sbt clean +test scalafmtCheckAll +publishM2
+  artifacts:
+    paths:
+      - /root/.m2/repository/me/
+
+publish:
+  image: google/cloud-sdk
+  stage: publish
+  before_script:
+    - gcloud auth activate-service-account --key-file "$GCP_KEY_FILE"
+    - gcloud config set project $GCP_PROJECT_ID
+  script:
+    - gsutil -m cp -r /root/.m2/repository/me/ "gs://$GCP_PROJECT_ID-maven-repository"
+  only:
+    refs:
+      - tags
