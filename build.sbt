@@ -21,8 +21,27 @@ val commonSettings = Seq(
   publishM2Configuration := publishM2Configuration.value.withOverwrite(true)
 )
 
+import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
+
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,
+  inquireVersions,
+  runClean,
+  runTest,
+  setReleaseVersion,
+  commitReleaseVersion,
+  tagRelease,
+  setNextVersion,
+  commitNextVersion,
+  pushChanges
+)
+
+releaseTagName := s"${version.value}"
+
 lazy val Versions = new {
   val sttp = "3.3.5"
+
+  val circe = "0.13.0"
 
   val cats = new {
     val core = "2.1.0" // TODO these are a bit outdated
@@ -45,11 +64,11 @@ lazy val core = (project in file("core"))
         libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % Versions.sttp,
         libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2-ce2" % Versions.sttp, // TODO is this required here?
         libraryDependencies += "com.softwaremill.sttp.client3" %% "circe" % Versions.sttp,
-        libraryDependencies += "io.circe" %% "circe-core" % "0.13.0",
-        libraryDependencies += "io.circe" %% "circe-generic" % "0.13.0",
-        libraryDependencies += "io.circe" %% "circe-generic-extras" % "0.13.0",
-        libraryDependencies += "io.circe" %% "circe-refined" % "0.13.0",
-        libraryDependencies += "io.circe" %% "circe-literal" % "0.13.0"
+        libraryDependencies += "io.circe" %% "circe-core" % Versions.circe,
+        libraryDependencies += "io.circe" %% "circe-generic" % Versions.circe,
+        libraryDependencies += "io.circe" %% "circe-generic-extras" % Versions.circe,
+        libraryDependencies += "io.circe" %% "circe-refined" % Versions.circe,
+        libraryDependencies += "io.circe" %% "circe-literal" % Versions.circe
       )
   )
 
@@ -88,6 +107,17 @@ lazy val firestore = (project in file("firestore"))
     )
   )
 
+lazy val logging = (project in file("logging-logback-circe"))
+  .settings(
+    commonSettings ++ Seq(
+      name := "googlecloud4s-logging-logback-circe",
+      libraryDependencies ++= List(
+        "ch.qos.logback" % "logback-classic" % "1.2.5",
+        "io.circe" %% "circe-core" % Versions.circe
+      )
+    )
+  )
+
 addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full)
 
 val root = project
@@ -95,4 +125,4 @@ val root = project
   .settings(
     publish / skip := true
   )
-  .aggregate(core, auth, storage, firestore)
+  .aggregate(core, auth, storage, firestore, logging)
