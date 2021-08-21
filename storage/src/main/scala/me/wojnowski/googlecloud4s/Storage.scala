@@ -12,6 +12,9 @@ import sttp.capabilities.fs2.Fs2Streams
 import sttp.client3.SttpBackend
 import sttp.model.StatusCode
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.duration.DurationInt
+
 trait Storage[F[_]] {
   def put(bucket: Bucket, key: Key, stream: Stream[F, Byte], maybeContentLength: Option[Long] = None): F[Unit]
 
@@ -28,7 +31,12 @@ object Storage {
 
   implicit def apply[F[_]](implicit ev: Storage[F]): Storage[F] = ev
 
-  def instance[F[_]: Sync](sttpBackend: SttpBackend[F, Fs2Streams[F]])(implicit tokenProvider: TokenProvider[F]): Storage[F] =
+  def instance[F[_]: Sync](
+    sttpBackend: SttpBackend[F, Fs2Streams[F]],
+    timeout: Duration = 600.seconds
+  )(
+    implicit tokenProvider: TokenProvider[F]
+  ): Storage[F] =
     new Storage[F] {
       import sttp.client3._
 
@@ -49,6 +57,7 @@ object Storage {
                      .post(uri"https://storage.googleapis.com/upload/storage/v1/b/${bucket.value}/o?uploadType=media&name=${key.value}")
                      .header("Authorization", s"Bearer ${token.value}")
                      .header("Content-Type", "application/octet-stream")
+                     .readTimeout(timeout)
                      .streamBody(Fs2Streams[F])(stream)
                      .send(sttpBackend)
                      .flatMap { response =>
@@ -87,6 +96,7 @@ object Storage {
                       .get(uri"https://storage.googleapis.com/storage/v1/b/${bucket.value}/o/${key.value}?alt=media")
                       .header("Authorization", s"Bearer ${token.value}")
                       .response(asStreamUnsafe(Fs2Streams[F]))
+                      .readTimeout(timeout)
                       .send(sttpBackend)
                       .flatMap { response =>
                         response.body match {
