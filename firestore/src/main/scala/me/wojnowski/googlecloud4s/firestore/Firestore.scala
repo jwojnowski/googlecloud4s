@@ -40,6 +40,7 @@ import me.wojnowski.googlecloud4s.auth.Token
 import me.wojnowski.googlecloud4s.firestore.Firestore.FieldFilter.Operator
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields.MyMap
+import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
 
 import java.util.concurrent.TimeUnit
 import scala.collection.immutable.SortedMap
@@ -59,13 +60,15 @@ trait Firestore[F[_]] {
   // TODO create some Query class
   def stream[V: FirestoreCodec](
     collection: Collection,
-    filter: List[FieldFilter] = List.empty,
+    filters: List[FieldFilter] = List.empty,
+    orderBy: List[Order] = List.empty,
     pageSize: Int = 50
   ): Stream[F, (Name.FullyQualified, Either[Error.DecodingFailure, V])]
 
   def streamLogFailures[V: FirestoreCodec](
     collection: Collection,
-    fieldFilter: List[FieldFilter] = List.empty,
+    filters: List[FieldFilter] = List.empty,
+    orderBy: List[Order] = List.empty,
     pageSize: Int = 50
   ): Stream[F, (Name.FullyQualified, V)]
 
@@ -192,6 +195,18 @@ object Firestore {
       case object == extends Operator { val value = "EQUAL" }
       case object =!= extends Operator { val value = "NOT_EQUAL" }
       case class Other(value: String) extends Operator
+    }
+
+  }
+
+  case class Order(fieldPath: String, direction: Direction)
+
+  object Order {
+    sealed trait Direction extends Product with Serializable
+
+    object Direction {
+      case object Ascending extends Direction
+      case object Descending extends Direction
     }
 
   }
@@ -392,18 +407,20 @@ object Firestore {
 
       override def stream[V: FirestoreCodec](
         collection: Collection,
-        fieldFilter: List[FieldFilter] = List.empty,
+        filters: List[FieldFilter] = List.empty,
+        orderBy: List[Order] = List.empty,
         pageSize: Int = 50
       ): Stream[F, (Name.FullyQualified, Either[Error.DecodingFailure, V])] =
-        streamOfDocuments(collection, fieldFilter, pageSize)
+        streamOfDocuments(collection, filters, orderBy, pageSize)
           .map(document => document.name -> document.as[V].leftMap(Error.DecodingFailure))
 
       override def streamLogFailures[V: FirestoreCodec](
         collection: Collection,
-        fieldFilter: List[FieldFilter] = List.empty,
+        filters: List[FieldFilter] = List.empty,
+        orderBy: List[Order] = List.empty,
         pageSize: Int = 50
       ): Stream[F, (Name.FullyQualified, V)] =
-        stream(collection, fieldFilter, pageSize).flatMap {
+        stream(collection, filters, orderBy, pageSize).flatMap {
           case (key, Right(value)) =>
             Stream.emit(key -> value)
           case (name, Left(error)) =>
@@ -417,6 +434,7 @@ object Firestore {
       private def streamOfDocuments(
         collection: Collection,
         fieldFilters: List[FieldFilter] = List.empty,
+        orderBy: List[Order] = List.empty,
         pageSize: Int
       ): Stream[F, FirestoreDocument] = {
         def fetchPage(maybeLastName: Option[Name.FullyQualified], limit: Int) = {
@@ -432,6 +450,15 @@ object Firestore {
                   """
             }
 
+            val orderByJson = {
+              orderBy match {
+                case Nil  => List(Order("__name__", Direction.Ascending))
+                case list => list
+              }
+            }.map { order =>
+              json"""{"field": {"fieldPath": ${order.fieldPath}}, "direction": ${order.direction.productPrefix.toUpperCase}}"""
+            }.asJson
+
             val query =
               json"""
                 {
@@ -442,7 +469,7 @@ object Firestore {
                     ],
                     "limit": $limit,
                     "where": $where,
-                    "orderBy": [{"field": {"fieldPath": "__name__"}, "direction": "ASCENDING"}]
+                    "orderBy": $orderByJson
                   }
                 """.deepMerge(
                 JsonObject
