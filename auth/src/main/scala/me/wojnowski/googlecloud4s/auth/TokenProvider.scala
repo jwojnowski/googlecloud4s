@@ -2,7 +2,6 @@ package me.wojnowski.googlecloud4s.auth
 
 import cats.effect.Clock
 import cats.effect.Sync
-import cats.effect.concurrent.Ref
 import io.circe.Json
 import io.circe.parser.decode
 import me.wojnowski.googlecloud4s.auth.TokenProvider.Error._
@@ -16,8 +15,8 @@ import java.util.concurrent.TimeUnit
 import cats.syntax.all._
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.string.Uri
-import io.chrisdavenport.log4cats.Logger
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
 import pdi.jwt.Jwt
 import pdi.jwt.JwtAlgorithm
@@ -26,6 +25,7 @@ import sttp.client3.SttpBackend
 
 import java.time.Duration
 import scala.util.control.NonFatal
+import cats.effect.Ref
 
 trait TokenProvider[F[_]] {
   def getToken(scope: Scope): F[Token]
@@ -53,9 +53,9 @@ object TokenProvider {
     implicit sttpBackend: SttpBackend[F, Any]
   ): F[TokenProvider[F]] =
     for {
-      ref      <- Ref.of(Map.empty[Scope, Token])
+      ref      <- Ref.of[F, Map[Scope, Token]](Map.empty)
       instance <- instance[F](credentials)
-      now      <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+      now      <- Clock[F].realTimeInstant
     } yield new TokenProvider[F] {
 
       override def getToken(scope: Scope): F[Token] =
@@ -99,7 +99,7 @@ object TokenProvider {
       override def getToken(scope: Scope): F[Token] = {
         for {
           _        <- Logger[F].info(s"Getting fresh access token with scope [$scope]...")
-          issuedAt <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+          issuedAt <- Clock[F].realTimeInstant
           expiresAt = issuedAt.plusSeconds(60 * 60)
           jwt      <- createJwt(scope, issuedAt, expiresAt)
           token    <- sttpBackend

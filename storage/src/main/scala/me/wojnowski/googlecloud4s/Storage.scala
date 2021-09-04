@@ -3,8 +3,8 @@ package me.wojnowski.googlecloud4s
 import cats.effect.Sync
 import cats.implicits._
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import io.circe.Json
 import io.circe.parser.parse
 import me.wojnowski.googlecloud4s.auth.TokenProvider
