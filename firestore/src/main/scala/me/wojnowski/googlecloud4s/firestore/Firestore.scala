@@ -24,8 +24,8 @@ import cats.implicits._
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.collection.NonEmpty
 import fs2.Chunk
-import io.chrisdavenport.log4cats.Logger
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import io.circe.Codec
 import io.circe.Decoder
 import io.circe.HCursor
@@ -497,7 +497,7 @@ object Firestore {
                            s"of collection [$collection] with filters [$fieldFilters]..."
                        )
             token   <- getToken.rethrow
-            instant <- Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+            instant <- Clock[F].realTimeInstant
             result  <- sttpBackend
                          .send(
                            basicRequest

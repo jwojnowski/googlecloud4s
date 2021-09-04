@@ -43,12 +43,14 @@ lazy val Versions = new {
 
   val circe = "0.13.0"
 
+  val fs2 = "3.1.1"
+
   val cats = new {
     val core = "2.1.0" // TODO these are a bit outdated
-    val effect = "2.1.2"
+    val effect = "3.2.5"
   }
 
-  val log4cats = "1.0.1"
+  val log4cats = "2.1.1"
 }
 
 lazy val core = (project in file("core"))
@@ -59,10 +61,10 @@ lazy val core = (project in file("core"))
         libraryDependencies += "eu.timepit" %% "refined" % "0.9.21",
         libraryDependencies += "org.typelevel" %% "cats-core" % Versions.cats.core,
         libraryDependencies += "org.typelevel" %% "cats-effect" % Versions.cats.effect,
-        libraryDependencies += "io.chrisdavenport" %% "log4cats-core" % Versions.log4cats,
-        libraryDependencies += "io.chrisdavenport" %% "log4cats-slf4j" % Versions.log4cats,
+        libraryDependencies += "org.typelevel" %% "log4cats-core" % Versions.log4cats,
+        libraryDependencies += "org.typelevel" %% "log4cats-slf4j" % Versions.log4cats,
         libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % Versions.sttp,
-        libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2-ce2" % Versions.sttp, // TODO is this required here?
+        libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2" % Versions.sttp, // TODO is this required here?
         libraryDependencies += "com.softwaremill.sttp.client3" %% "circe" % Versions.sttp,
         libraryDependencies += "io.circe" %% "circe-core" % Versions.circe,
         libraryDependencies += "io.circe" %% "circe-generic" % Versions.circe,
@@ -91,7 +93,7 @@ lazy val storage = (project in file("storage"))
       libraryDependencies ++= List(
         "co.fs2" %% "fs2-core",
         "co.fs2" %% "fs2-io"
-      ).map(_ % "2.2.2")
+      ).map(_ % Versions.fs2)
     )
   )
 
@@ -103,7 +105,7 @@ lazy val firestore = (project in file("firestore"))
       libraryDependencies ++= List(
         "co.fs2" %% "fs2-core",
         "co.fs2" %% "fs2-io"
-      ).map(_ % "2.2.2")
+      ).map(_ % Versions.fs2)
     )
   )
 
