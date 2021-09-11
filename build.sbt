@@ -131,9 +131,6 @@ lazy val pubsub = (project in file("pubsub"))
     commonSettings ++ Seq(
       name := "googlecloud4s-pubsub",
       libraryDependencies ++= List(
-        "io.chrisdavenport" %% "fuuid" % Versions.fuuid,
-        "io.chrisdavenport" %% "fuuid-circe" % Versions.fuuid,
-        "co.fs2" %% "fs2-core" % Versions.fs2, // TODO this is for base64 conversion, seems a bit overkill
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
         "com.dimafeng" %% "testcontainers-scala-munit" % "0.39.7" % Test,
