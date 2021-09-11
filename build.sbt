@@ -51,6 +51,10 @@ lazy val Versions = new {
   }
 
   val log4cats = "2.1.1"
+
+  val fuuid = "0.8.0-M2"
+
+  val mUnit = "0.7.29"
 }
 
 lazy val core = (project in file("core"))
@@ -70,7 +74,8 @@ lazy val core = (project in file("core"))
         libraryDependencies += "io.circe" %% "circe-generic" % Versions.circe,
         libraryDependencies += "io.circe" %% "circe-generic-extras" % Versions.circe,
         libraryDependencies += "io.circe" %% "circe-refined" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-literal" % Versions.circe
+        libraryDependencies += "io.circe" %% "circe-literal" % Versions.circe,
+        libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test
       )
   )
 
@@ -120,11 +125,30 @@ lazy val logging = (project in file("logging-logback-circe"))
     )
   )
 
+lazy val pubsub = (project in file("pubsub"))
+  .dependsOn(core, auth)
+  .settings(
+    commonSettings ++ Seq(
+      name := "googlecloud4s-pubsub",
+      libraryDependencies ++= List(
+        "io.chrisdavenport" %% "fuuid" % Versions.fuuid,
+        "io.chrisdavenport" %% "fuuid-circe" % Versions.fuuid,
+        "co.fs2" %% "fs2-core" % Versions.fs2, // TODO this is for base64 conversion, seems a bit overkill
+        "org.scalameta" %% "munit" % Versions.mUnit % Test,
+        "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
+        "com.dimafeng" %% "testcontainers-scala-munit" % "0.39.7" % Test,
+        "org.testcontainers" % "gcloud" % "1.16.0"
+      ),
+      Test / fork := true,
+    )
+  )
+
 addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full)
+addCompilerPlugin("com.kubukoz" % "better-tostring" % "0.3.6" cross CrossVersion.full)
 
 val root = project
   .in(file("."))
   .settings(
     publish / skip := true
   )
-  .aggregate(core, auth, storage, firestore, logging)
+  .aggregate(core, auth, storage, firestore, logging, pubsub)
