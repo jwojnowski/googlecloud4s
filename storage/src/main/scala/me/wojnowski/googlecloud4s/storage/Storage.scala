@@ -1,13 +1,15 @@
-package me.wojnowski.googlecloud4s
+package me.wojnowski.googlecloud4s.storage
 
 import cats.effect.Sync
 import cats.implicits._
 import fs2.Stream
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.slf4j.Slf4jLogger
 import io.circe.Json
 import io.circe.parser.parse
+import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
+import me.wojnowski.googlecloud4s.auth
 import me.wojnowski.googlecloud4s.auth.TokenProvider
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import sttp.capabilities.fs2.Fs2Streams
 import sttp.client3.SttpBackend
 import sttp.model.StatusCode
