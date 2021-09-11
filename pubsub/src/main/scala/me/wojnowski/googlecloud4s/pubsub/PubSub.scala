@@ -26,6 +26,8 @@ trait PubSub[F[_]] {
 
 object PubSub {
 
+  def apply[F[_]](implicit ev: PubSub[F]): PubSub[F] = ev
+
   def instance[F[_]: Sync](
     projectId: ProjectId,
     backend: SttpBackend[F, Any],
