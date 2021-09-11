@@ -1,4 +1,4 @@
-package me.wojnowski.googlecloud4s
+package me.wojnowski.googlecloud4s.storage
 
 import cats.Show
 import io.circe.Codec
