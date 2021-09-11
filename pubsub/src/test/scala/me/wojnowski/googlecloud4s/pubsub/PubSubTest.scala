@@ -2,29 +2,21 @@ package me.wojnowski.googlecloud4s.pubsub
 
 import cats.effect.IO
 import cats.effect.std.Dispatcher
-import com.dimafeng.testcontainers.GenericContainer
-import com.dimafeng.testcontainers.SingleContainer
-import com.dimafeng.testcontainers.munit.TestContainerForAll
-import munit.CatsEffectSuite
-import munit.FunSuite
-import org.testcontainers.utility.DockerImageName
-import sttp.capabilities.fs2.Fs2Streams
-import sttp.client3.SttpBackend
-import sttp.client3.httpclient.fs2.HttpClientFs2Backend
 import cats.syntax.all._
+import com.dimafeng.testcontainers.munit.TestContainerForAll
 import eu.timepit.refined.api.Refined
-import eu.timepit.refined.refineMV
 import eu.timepit.refined.refineV
 import eu.timepit.refined.string.Uri
-import io.chrisdavenport.fuuid.FUUID
 import me.wojnowski.googlecloud4s.ProjectId
 import me.wojnowski.googlecloud4s.auth.Scope
 import me.wojnowski.googlecloud4s.auth.Token
 import me.wojnowski.googlecloud4s.auth.TokenProvider
+import munit.CatsEffectSuite
+import sttp.capabilities.fs2.Fs2Streams
+import sttp.client3.SttpBackend
+import sttp.client3.httpclient.fs2.HttpClientFs2Backend
 
 import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 
 class PubSubTest extends CatsEffectSuite with TestContainerForAll {
 
@@ -40,11 +32,7 @@ class PubSubTest extends CatsEffectSuite with TestContainerForAll {
       withSttpBackend { backend =>
         val pubSub = PubSub.instance(projectId, backend, uriOverride = uri.some)
         val message =
-          Message(
-            "eyJ0ZXN0IjogImZvbyJ9Cg==",
-            FUUID.fuuid("c636fe03-1fcf-4ccf-9c41-c29542c262d3"),
-            Instant.EPOCH.atOffset(ZoneOffset.UTC)
-          )
+          Message.create("eyJ0ZXN0IjogImZvbyJ9Cg==")
 
         for {
           result <- pubSub.publish(topic, message).attempt
@@ -58,7 +46,7 @@ class PubSubTest extends CatsEffectSuite with TestContainerForAll {
     withContainerUri { uri =>
       withSttpBackend { backend =>
         val pubSub = PubSub.instance(projectId, backend, uriOverride = uri.some)
-        val message = Message("data", FUUID.fuuid("c636fe03-1fcf-4ccf-9c41-c29542c262d3"), OffsetDateTime.now()) // TODO
+        val message = Message.create("data")
 
         for {
           _      <- pubSub.createTopic(topic)

@@ -64,7 +64,7 @@ object PubSub {
 
       override def publish(topic: Topic, messages: NonEmptyList[Message]): F[Unit] = {
         for {
-          _        <- Logger[F].debug(s"Publishing messages ${messages.map(_.messageId)} to topic [${topic.name}]...")
+          _        <- Logger[F].debug(s"Publishing [${messages.size}] message(s) to topic [${topic.name}]...")
           token    <- tokenProvider.getToken(scope)
           response <- backend
                         .send(
@@ -80,10 +80,10 @@ object PubSub {
                         case StatusCode.NotFound    => Error.TopicNotFound.raiseError[F, Unit]
                         case _                      => UnexpectedResponse(response.show()).raiseError[F, Unit]
                       }
-          _        <- Logger[F].info(s"Published messages ${messages.map(_.messageId)} to topic [${topic.name}].")
+          _        <- Logger[F].info(s"Published [${messages.size}] message(s) to topic [${topic.name}].")
         } yield ()
       }.onError {
-        case t => logger.error(t)(s"Failed to publish messages ${messages.map(_.messageId)} to topic [${topic.name}] due to: $t")
+        case t => logger.error(t)(s"Failed to publish [${messages.size}] message(s) to topic [${topic.name}] due to: $t")
       }
 
     }
