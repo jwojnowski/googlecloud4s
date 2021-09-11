@@ -42,7 +42,6 @@ import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields.MyMap
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
 
-import java.util.concurrent.TimeUnit
 import scala.collection.immutable.SortedMap
 
 trait Firestore[F[_]] {
@@ -364,7 +363,7 @@ object Firestore {
               } // TODO retries
             }
             .flatTap { previousValue =>
-              Logger[F].debug(s"Updated [$collection/$name] from [$previousValue] to [${previousValue.map(f)}]") *>
+              Logger[F].trace(s"Updated [$collection/$name] from [$previousValue] to [${previousValue.map(f)}]") *>
                 Logger[F].info(s"Updated [$collection/$name].")
             }
             .onError {
