@@ -41,12 +41,12 @@ releaseTagName := s"${version.value}"
 lazy val Versions = new {
   val sttp = "3.3.5"
 
-  val circe = "0.13.0"
+  val circe = "0.14.1"
 
-  val fs2 = "3.1.1"
+  val fs2 = "3.1.2"
 
   val cats = new {
-    val core = "2.1.0" // TODO these are a bit outdated
+    val core = "2.6.1"
     val effect = "3.2.5"
   }
 
@@ -62,7 +62,7 @@ lazy val core = (project in file("core"))
     commonSettings ++
       Seq(
         name := "googlecloud4s-core",
-        libraryDependencies += "eu.timepit" %% "refined" % "0.9.21",
+        libraryDependencies += "eu.timepit" %% "refined" % "0.9.27",
         libraryDependencies += "org.typelevel" %% "cats-core" % Versions.cats.core,
         libraryDependencies += "org.typelevel" %% "cats-effect" % Versions.cats.effect,
         libraryDependencies += "org.typelevel" %% "log4cats-core" % Versions.log4cats,
@@ -72,9 +72,9 @@ lazy val core = (project in file("core"))
         libraryDependencies += "com.softwaremill.sttp.client3" %% "circe" % Versions.sttp,
         libraryDependencies += "io.circe" %% "circe-core" % Versions.circe,
         libraryDependencies += "io.circe" %% "circe-generic" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-generic-extras" % Versions.circe,
+        libraryDependencies += "io.circe" %% "circe-generic-extras" % Versions.circe cross CrossVersion.for3Use2_13,
         libraryDependencies += "io.circe" %% "circe-refined" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-literal" % Versions.circe,
+        libraryDependencies += "io.circe" %% "circe-literal" % Versions.circe cross CrossVersion.for3Use2_13,
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test
       )
   )
@@ -85,8 +85,8 @@ lazy val auth = (project in file("auth"))
     commonSettings ++
       Seq(
         name := "googlecloud4s-auth",
-        libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.4.4",
-        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "8.0.2"
+        libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.5.0",
+        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.0.1"
       )
   )
 

@@ -1,31 +1,26 @@
 package me.wojnowski.googlecloud4s.auth
 
 import cats.effect.Clock
+import cats.effect.Ref
 import cats.effect.Sync
-import io.circe.Json
-import io.circe.parser.decode
-import me.wojnowski.googlecloud4s.auth.TokenProvider.Error._
-
-import java.security.KeyFactory
-import java.security.interfaces.RSAPrivateKey
-import java.security.spec.PKCS8EncodedKeySpec
-import java.time.Instant
-import java.util.Base64
-import java.util.concurrent.TimeUnit
 import cats.syntax.all._
-import eu.timepit.refined.api.Refined
-import eu.timepit.refined.string.Uri
+import io.circe.Json
+import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
+import me.wojnowski.googlecloud4s.auth.TokenProvider.Error._
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
 import pdi.jwt.Jwt
 import pdi.jwt.JwtAlgorithm
 import pdi.jwt.JwtClaim
 import sttp.client3.SttpBackend
 
+import java.security.KeyFactory
+import java.security.interfaces.RSAPrivateKey
+import java.security.spec.PKCS8EncodedKeySpec
 import java.time.Duration
+import java.time.Instant
+import java.util.Base64
 import scala.util.control.NonFatal
-import cats.effect.Ref
 
 trait TokenProvider[F[_]] {
   def getToken(scope: Scope): F[Token]
@@ -46,7 +41,7 @@ object TokenProvider {
     case class InvalidCredentials(cause: Throwable) extends Error
   }
 
-  def cachedInstance[F[_]: Clock: Sync](
+  def cachedInstance[F[_]: Sync](
     credentials: Credentials,
     expirationBuffer: Duration
   )(
@@ -66,7 +61,7 @@ object TokenProvider {
 
     }
 
-  def instance[F[_]: Clock: Sync](credentials: Credentials)(implicit sttpBackend: SttpBackend[F, Any]): F[TokenProvider[F]] = {
+  def instance[F[_]: Sync](credentials: Credentials)(implicit sttpBackend: SttpBackend[F, Any]): F[TokenProvider[F]] = {
     implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
 
     def decodePrivateKey(keyFactory: KeyFactory, rawKey: String): F[RSAPrivateKey] =
