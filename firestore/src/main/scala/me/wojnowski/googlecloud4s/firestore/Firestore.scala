@@ -21,15 +21,12 @@ import me.wojnowski.googlecloud4s.auth.TokenProvider
 import me.wojnowski.googlecloud4s.firestore.Firestore._
 import me.wojnowski.googlecloud4s.firestore.FirestoreCodec.syntax._
 import cats.implicits._
-import eu.timepit.refined.api.Refined
-import eu.timepit.refined.collection.NonEmpty
 import fs2.Chunk
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import io.circe.Codec
 import io.circe.Decoder
 import io.circe.HCursor
-import io.circe.generic.extras.semiauto
 import io.circe.generic.extras.semiauto.deriveUnwrappedCodec
 import io.circe.generic.extras.semiauto.deriveUnwrappedDecoder
 import io.circe.generic.semiauto.deriveDecoder
@@ -42,6 +39,7 @@ import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields.MyMap
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
 
+import scala.annotation.nowarn
 import scala.collection.immutable.SortedMap
 
 trait Firestore[F[_]] {
@@ -210,7 +208,7 @@ object Firestore {
 
   }
 
-  def instance[F[_]: Sync: Clock: TokenProvider](sttpBackend: SttpBackend[F, Any], projectId: ProjectId): Firestore[F] =
+  def instance[F[_]: Sync: TokenProvider](sttpBackend: SttpBackend[F, Any], projectId: ProjectId): Firestore[F] =
     new Firestore[F] {
 
       import sttp.client3._
@@ -261,6 +259,7 @@ object Firestore {
       override def put[V: FirestoreCodec](collection: Collection, name: Name, value: V): F[Unit] =
         putWithOptimisticLocking(collection, name, value, maybeUpdateTime = None)
 
+      @nowarn("msg=parameter value maybeUpdateTime")
       private def putWithOptimisticLocking[V: FirestoreCodec](
         collection: Collection,
         name: Name,
@@ -433,8 +432,8 @@ object Firestore {
 
       private def streamOfDocuments(
         collection: Collection,
-        fieldFilters: List[FieldFilter] = List.empty,
-        orderBy: List[Order] = List.empty,
+        fieldFilters: List[FieldFilter],
+        orderBy: List[Order],
         pageSize: Int
       ): Stream[F, FirestoreDocument] = {
         def fetchPage(maybeLastName: Option[Name.FullyQualified], limit: Int) = {

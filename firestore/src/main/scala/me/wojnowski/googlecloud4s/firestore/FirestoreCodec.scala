@@ -2,7 +2,6 @@ package me.wojnowski.googlecloud4s.firestore
 
 import cats.implicits._
 import io.circe.DecodingFailure
-import io.circe.Encoder
 import io.circe.Json
 import io.circe.JsonObject
 

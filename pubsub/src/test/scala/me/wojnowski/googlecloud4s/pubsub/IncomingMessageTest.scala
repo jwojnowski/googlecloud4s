@@ -2,7 +2,6 @@ package me.wojnowski.googlecloud4s.pubsub
 
 import io.circe.Decoder
 import io.circe.generic.semiauto.deriveDecoder
-import munit.CatsEffectSuite
 import munit.FunSuite
 import io.circe.parser.decode
 import me.wojnowski.googlecloud4s.pubsub.IncomingMessageTest.Foo
