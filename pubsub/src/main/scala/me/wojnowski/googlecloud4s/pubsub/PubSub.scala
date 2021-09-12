@@ -18,8 +18,8 @@ import sttp.model.Uri
 import scala.util.control.NoStackTrace
 
 trait PubSub[F[_]] {
-  def publish(topic: Topic, message: Message): F[Unit] = publish(topic, NonEmptyList.one(message))
-  def publish(topic: Topic, messages: NonEmptyList[Message]): F[Unit]
+  def publish(topic: Topic, message: OutgoingMessage): F[Unit] = publish(topic, NonEmptyList.one(message))
+  def publish(topic: Topic, messages: NonEmptyList[OutgoingMessage]): F[Unit]
 
   def createTopic(topic: Topic): F[Unit]
 }
@@ -62,7 +62,7 @@ object PubSub {
         case t => Logger[F].error(t)(s"Failed to create topic [${topic.name}] due to: $t")
       }
 
-      override def publish(topic: Topic, messages: NonEmptyList[Message]): F[Unit] = {
+      override def publish(topic: Topic, messages: NonEmptyList[OutgoingMessage]): F[Unit] = {
         for {
           _        <- Logger[F].debug(s"Publishing [${messages.size}] message(s) to topic [${topic.name}]...")
           token    <- tokenProvider.getToken(scope)
