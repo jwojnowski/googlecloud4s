@@ -342,7 +342,8 @@ object Firestore {
               }
             }
             .flatTap { value =>
-              Logger[F].debug(s"Got item [$collection/$name]: [$value]")
+              Logger[F].trace(s"Got item [$collection/$name]: [$value]") *>
+                Logger[F].debug(s"Got item [$collection/$name].")
             }
             .onError {
               case throwable =>

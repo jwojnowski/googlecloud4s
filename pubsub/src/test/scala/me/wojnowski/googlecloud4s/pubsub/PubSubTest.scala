@@ -32,7 +32,7 @@ class PubSubTest extends CatsEffectSuite with TestContainerForAll {
       withSttpBackend { backend =>
         val pubSub = PubSub.instance(projectId, backend, uriOverride = uri.some)
         val message =
-          Message.create("eyJ0ZXN0IjogImZvbyJ9Cg==")
+          OutgoingMessage("data")
 
         for {
           result <- pubSub.publish(topic, message).attempt
@@ -46,7 +46,7 @@ class PubSubTest extends CatsEffectSuite with TestContainerForAll {
     withContainerUri { uri =>
       withSttpBackend { backend =>
         val pubSub = PubSub.instance(projectId, backend, uriOverride = uri.some)
-        val message = Message.create("data")
+        val message = OutgoingMessage("data")
 
         for {
           _      <- pubSub.createTopic(topic)
