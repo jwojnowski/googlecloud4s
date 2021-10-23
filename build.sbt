@@ -6,11 +6,10 @@ idePackagePrefix := Some("me.wojnowski.googlecloud4s")
 
 scalacOptions += "-Ypartial-unification"
 
-val Scala212 = "2.12.12"
 val Scala213 = "2.13.5"
 
 ThisBuild / scalaVersion := Scala213
-ThisBuild / crossScalaVersions := Seq(Scala212, Scala213)
+ThisBuild / crossScalaVersions := Seq(Scala213)
 ThisBuild / organization := "me.wojnowski"
 
 val commonSettings = Seq(
@@ -55,6 +54,8 @@ lazy val Versions = new {
   val fuuid = "0.8.0-M2"
 
   val mUnit = "0.7.29"
+
+  val testContainers = "0.39.8"
 }
 
 lazy val core = (project in file("core"))
@@ -65,7 +66,7 @@ lazy val core = (project in file("core"))
         libraryDependencies += "eu.timepit" %% "refined" % "0.9.27",
         libraryDependencies += "org.typelevel" %% "cats-core" % Versions.cats.core,
         libraryDependencies += "org.typelevel" %% "cats-effect" % Versions.cats.effect,
-        libraryDependencies += "org.typelevel" %% "log4cats-core" % Versions.log4cats,
+        libraryDependencies += "org.typelevel" %% "log4cats-core" % Versions.log4cats cross CrossVersion.binary,
         libraryDependencies += "org.typelevel" %% "log4cats-slf4j" % Versions.log4cats,
         libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % Versions.sttp,
         libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2" % Versions.sttp, // TODO is this required here?
@@ -109,8 +110,13 @@ lazy val firestore = (project in file("firestore"))
       name := "googlecloud4s-firestore",
       libraryDependencies ++= List(
         "co.fs2" %% "fs2-core",
-        "co.fs2" %% "fs2-io"
-      ).map(_ % Versions.fs2)
+        "co.fs2" %% "fs2-io",
+      ).map(_ % Versions.fs2) ++ List(
+        "org.scalameta" %% "munit" % Versions.mUnit % Test,
+        "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
+        "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainers % Test,
+        "org.testcontainers" % "gcloud" % "1.16.0" % Test
+      )
     )
   )
 
@@ -133,8 +139,8 @@ lazy val pubsub = (project in file("pubsub"))
       libraryDependencies ++= List(
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
-        "com.dimafeng" %% "testcontainers-scala-munit" % "0.39.7" % Test,
-        "org.testcontainers" % "gcloud" % "1.16.0"
+        "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainers % Test,
+        "org.testcontainers" % "gcloud" % "1.16.0" % Test
       ),
       Test / fork := true,
     )

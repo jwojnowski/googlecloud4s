@@ -21,6 +21,8 @@ import me.wojnowski.googlecloud4s.auth.TokenProvider
 import me.wojnowski.googlecloud4s.firestore.Firestore._
 import me.wojnowski.googlecloud4s.firestore.FirestoreCodec.syntax._
 import cats.implicits._
+import eu.timepit.refined
+import eu.timepit.refined.api.Refined
 import fs2.Chunk
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -208,14 +210,14 @@ object Firestore {
 
   }
 
-  def instance[F[_]: Sync: TokenProvider](sttpBackend: SttpBackend[F, Any], projectId: ProjectId): Firestore[F] =
+  def instance[F[_]: Sync: TokenProvider](sttpBackend: SttpBackend[F, Any], projectId: ProjectId)(uriOverride: Option[String Refined refined.string.Uri] = None): Firestore[F] =
     new Firestore[F] {
 
       import sttp.client3._
 
       implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
 
-      val baseUri = uri"https://firestore.googleapis.com"
+      val baseUri = uriOverride.fold(uri"https://firestore.googleapis.com")(u => uri"$u")
       val scope = Scope("https://www.googleapis.com/auth/datastore")
 
       private def getToken: F[Either[Error.AuthError, Token]] =
