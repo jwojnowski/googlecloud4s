@@ -55,7 +55,8 @@ lazy val Versions = new {
 
   val mUnit = "0.7.29"
 
-  val testContainers = "0.39.8"
+  val testContainers = "1.16.0"
+  val testContainersScalaMunit = "0.39.8"
 }
 
 lazy val core = (project in file("core"))
@@ -114,8 +115,9 @@ lazy val firestore = (project in file("firestore"))
       ).map(_ % Versions.fs2) ++ List(
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
-        "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainers % Test,
-        "org.testcontainers" % "gcloud" % "1.16.0" % Test
+        "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainersScalaMunit % Test,
+        "org.testcontainers" % "gcloud" % Versions.testContainers % Test,
+        "org.slf4j" % "slf4j-simple" % "1.7.32" % Test
       )
     )
   )
@@ -139,8 +141,8 @@ lazy val pubsub = (project in file("pubsub"))
       libraryDependencies ++= List(
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
-        "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainers % Test,
-        "org.testcontainers" % "gcloud" % "1.16.0" % Test
+        "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainersScalaMunit % Test,
+        "org.testcontainers" % "gcloud" % Versions.testContainers % Test
       ),
       Test / fork := true,
     )

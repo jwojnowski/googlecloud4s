@@ -1,4 +1,5 @@
 package me.wojnowski.googlecloud4s.firestore
+
 import com.dimafeng.testcontainers.ContainerDef
 import com.dimafeng.testcontainers.SingleContainer
 import org.testcontainers.containers.{FirestoreEmulatorContainer => JavaFirestoreEmulatorContainer}

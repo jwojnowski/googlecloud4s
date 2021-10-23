@@ -210,7 +210,11 @@ object Firestore {
 
   }
 
-  def instance[F[_]: Sync: TokenProvider](sttpBackend: SttpBackend[F, Any], projectId: ProjectId)(uriOverride: Option[String Refined refined.string.Uri] = None): Firestore[F] =
+  def instance[F[_]: Sync: TokenProvider](
+    sttpBackend: SttpBackend[F, Any],
+    projectId: ProjectId,
+    uriOverride: Option[String Refined refined.string.Uri] = None
+  ): Firestore[F] =
     new Firestore[F] {
 
       import sttp.client3._
@@ -438,8 +442,8 @@ object Firestore {
         orderBy: List[Order],
         pageSize: Int
       ): Stream[F, FirestoreDocument] = {
-        def fetchPage(maybeLastName: Option[Name.FullyQualified], limit: Int) = {
-          def createRequestBody(instant: Instant): Json = {
+        def fetchPage(maybeLast: Option[FirestoreDocument], readTime: Instant, limit: Int) = {
+          def createRequestBody: Json = {
             val where = fieldFilters.toNel.map { fieldFilters =>
               json"""
                     {
@@ -451,12 +455,9 @@ object Firestore {
                   """
             }
 
-            val orderByJson = {
-              orderBy match {
-                case Nil  => List(Order("__name__", Direction.Ascending))
-                case list => list
-              }
-            }.map { order =>
+            val orderByWithName = orderBy ++ List(Order("__name__", Direction.Ascending))
+
+            val orderByJson = orderByWithName.map { order =>
               json"""{"field": {"fieldPath": ${order.fieldPath}}, "direction": ${order.direction.productPrefix.toUpperCase}}"""
             }.asJson
 
@@ -474,10 +475,16 @@ object Firestore {
                   }
                 """.deepMerge(
                 JsonObject
-                  .fromIterable(maybeLastName.map { lastKey =>
+                  .fromIterable(maybeLast.map { lastDocument =>
+                    val values =
+                      orderBy.map(order => lastDocument.fields.value.apply(order.fieldPath)) :+
+                        FirestoreData(
+                          JsonObject("referenceValue" -> lastDocument.name.full.asJson)
+                        )
+
                     "startAt" ->
                       json"""{
-                        "values": [{"referenceValue": ${lastKey.full}}],
+                        "values": ${values.map(_.json.asJson)},
                         "before": false
                       }"""
                   })
@@ -487,70 +494,76 @@ object Firestore {
             json"""
                 {
                   "structuredQuery": $query,
-                  "readTime": $instant
+                  "readTime": $readTime
                 }
                 """
           }
 
           for {
-            _       <- Logger[F].debug(
-                         s"Streaming part (last document: [$maybeLastName], limit: [$limit])" +
-                           s"of collection [$collection] with filters [$fieldFilters]..."
-                       )
-            token   <- getToken.rethrow
-            instant <- Clock[F].realTimeInstant
-            result  <- sttpBackend
-                         .send(
-                           basicRequest
-                             .header("Authorization", s"Bearer ${token.value}")
-                             .post(
-                               uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents:runQuery"
-                             )
-                             .body(createRequestBody(instant))
-                             .response(asJson[Json])
-                         )
-                         .mapError(Error.CommunicationError)
-                         .flatMap { response =>
-                           response.body match {
-                             case Right(jsons)            =>
-                               jsons
-                                 .as[Chain[JsonObject]]
-                                 .map(_.filter(_.contains("document")))
-                                 .flatMap(_.traverse(_.asJson.hcursor.downField("document").as[FirestoreDocument])) match { // TODO this could use a refactor
-                                 case Right(result) =>
-                                   result.pure[F]
-                                 case Left(error)   =>
-                                   Error
-                                     .UnexpectedResponse(
-                                       s"Couldn't decode streaming response due to [${error.getMessage}]"
-                                     )
-                                     .raiseError[F, Chain[FirestoreDocument]]
-                               }
-                             case Left(responseException) =>
-                               Error
-                                 .UnexpectedResponse(responseException.getMessage)
-                                 .raiseError[F, Chain[FirestoreDocument]]
-                           }
-                         }
+            _      <- Logger[F].debug(
+                        s"Streaming part (last document: [${maybeLast.map(_.name)}], limit: [$limit])" +
+                          s"of collection [$collection] with filters [$fieldFilters]..."
+                      )
+            token  <- getToken.rethrow
+            request = basicRequest
+                        .header("Authorization", s"Bearer ${token.value}")
+                        .post(
+                          uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents:runQuery"
+                        )
+                        .body(createRequestBody)
+                        .response(asJson[Json])
+            result <- sttpBackend
+                        .send(
+                          request
+                        )
+                        .mapError(Error.CommunicationError)
+                        .flatMap { response =>
+                          response.body match {
+                            case Right(jsons)            =>
+                              jsons
+                                .as[Chain[JsonObject]]
+                                .map(_.filter(_.contains("document")))
+                                .flatMap(_.traverse(_.asJson.hcursor.downField("document").as[FirestoreDocument])) match { // TODO this could use a refactor
+                                case Right(result) =>
+                                  result.pure[F]
+                                case Left(error)   =>
+                                  Error
+                                    .UnexpectedResponse(
+                                      s"Couldn't decode streaming response due to [${error.getMessage}]"
+                                    )
+                                    .raiseError[F, Chain[FirestoreDocument]]
+                              }
+                            case Left(responseException) =>
+                              Error
+                                .UnexpectedResponse(responseException.getMessage)
+                                .raiseError[F, Chain[FirestoreDocument]]
+                          }
+                        }
           } yield result
         }.onError {
           case throwable =>
             Logger[F].error(throwable)(
-              s"Failed to stream part [last document name: [$maybeLastName], limit: [$limit] of [$collection] with filters [$fieldFilters] due to $throwable"
+              s"Failed to stream part [last document name: [$maybeLast], limit: [$limit] of [$collection] with filters [$fieldFilters] due to $throwable"
             )
         }
 
-        def fetchRecursively(maybeLastName: Option[Name.FullyQualified], pageSize: Int): Stream[F, FirestoreDocument] =
-          Stream.eval(fetchPage(maybeLastName, pageSize)).flatMap { batch =>
+        def fetchRecursively(maybeLast: Option[FirestoreDocument], readTime: Instant, pageSize: Int): Stream[F, FirestoreDocument] =
+          Stream.eval(fetchPage(maybeLast, readTime, pageSize)).flatMap { batch =>
             Stream.chunk(Chunk.chain(batch)) ++
               batch
                 .lastOption
-                .fold[Stream[F, FirestoreDocument]](Stream.empty)(document => fetchRecursively(document.name.some, pageSize))
+                .fold[Stream[F, FirestoreDocument]](Stream.empty)(document => fetchRecursively(document.some, readTime, pageSize))
           }
 
-        Stream.eval(Logger[F].debug(s"Streaming collection [$collection] with filters [$fieldFilters]...")).flatMap { _ =>
-          fetchRecursively(maybeLastName = None, pageSize)
-        }
+        Stream
+          .eval {
+            Clock[F].realTimeInstant.flatTap { readTime =>
+              Logger[F].debug(s"Streaming collection [$collection] with filters [$fieldFilters] and read time [$readTime]...")
+            }
+          }
+          .flatMap { readTime =>
+            fetchRecursively(maybeLast = None, readTime, pageSize)
+          }
       }
 
       override def delete[V](collection: Collection, name: Name): F[Unit] = {
