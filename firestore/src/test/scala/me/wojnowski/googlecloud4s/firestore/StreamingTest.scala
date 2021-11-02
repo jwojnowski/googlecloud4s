@@ -12,8 +12,10 @@ import io.circe.Json
 import io.circe.JsonObject
 import io.circe.syntax.EncoderOps
 import me.wojnowski.googlecloud4s.ProjectId
-import me.wojnowski.googlecloud4s.auth.Scope
-import me.wojnowski.googlecloud4s.auth.Token
+import me.wojnowski.googlecloud4s.auth.AccessToken
+import me.wojnowski.googlecloud4s.auth.IdentityToken
+import me.wojnowski.googlecloud4s.auth.Scopes
+import me.wojnowski.googlecloud4s.auth.TargetAudience
 import me.wojnowski.googlecloud4s.auth.TokenProvider
 import me.wojnowski.googlecloud4s.firestore.Firestore.Collection
 import me.wojnowski.googlecloud4s.firestore.Firestore.FieldFilter
@@ -39,15 +41,16 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll {
 
   implicit val tokenProvider = new TokenProvider[IO] {
 
-    override def getToken(scope: Scope): IO[Token] =
+    override def getAccessToken(scopes: Scopes): IO[AccessToken] =
       IO.pure(
-        Token(
+        AccessToken(
           "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dnZWRJbkFzIjoiYWRtaW4iLCJpYXQiOjE0MjI3Nzk2Mzh9.gzSraSYS8EXBxLN_oWnFSRgCzcmJmMjLiuyu5CSpyHI",
-          Scope("test"),
+          Scopes("test"),
           Instant.EPOCH
         )
       )
 
+    override def getIdentityToken(audience: TargetAudience): IO[IdentityToken] = ???
   }
 
   test("Cursors with orderBy parameters") {

@@ -8,8 +8,8 @@ import eu.timepit.refined.api.Refined
 import eu.timepit.refined.refineV
 import eu.timepit.refined.string.Uri
 import me.wojnowski.googlecloud4s.ProjectId
-import me.wojnowski.googlecloud4s.auth.Scope
-import me.wojnowski.googlecloud4s.auth.Token
+import me.wojnowski.googlecloud4s.auth.AccessToken
+import me.wojnowski.googlecloud4s.auth.Scopes
 import me.wojnowski.googlecloud4s.auth.TokenProvider
 import munit.CatsEffectSuite
 import sttp.capabilities.fs2.Fs2Streams
@@ -25,7 +25,7 @@ class PubSubTest extends CatsEffectSuite with TestContainerForAll {
   val topic = Topic("test-topic")
   val projectId = ProjectId("test-project")
 
-  implicit val tokenProvider: TokenProvider[IO] = TokenProviderMock.const(Token("test", Scope("test"), Instant.EPOCH))
+  implicit val tokenProvider: TokenProvider[IO] = TokenProviderMock.const(AccessToken("test", Scopes("test"), Instant.EPOCH))
 
   test("Publishing to non-existent topic results in an error") {
     withContainerUri { uri =>

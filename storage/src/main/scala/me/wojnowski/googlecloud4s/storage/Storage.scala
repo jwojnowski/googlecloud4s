@@ -42,7 +42,7 @@ object Storage {
     new Storage[F] {
       import sttp.client3._
 
-      private val Scope = auth.Scope("https://www.googleapis.com/auth/devstorage.read_write")
+      private val Scope = auth.Scopes("https://www.googleapis.com/auth/devstorage.read_write")
 
       implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
 
@@ -54,7 +54,7 @@ object Storage {
       ): F[Unit] =
         for {
           _     <- Logger[F].debug(show"Putting [$bucket/$key]...")
-          token <- TokenProvider[F].getToken(Scope)
+          token <- TokenProvider[F].getAccessToken(Scope)
           _     <- basicRequest
                      .post(uri"https://storage.googleapis.com/upload/storage/v1/b/${bucket.value}/o?uploadType=media&name=${key.value}")
                      .header("Authorization", s"Bearer ${token.value}")
@@ -74,7 +74,7 @@ object Storage {
       override def delete(bucket: Bucket, key: Key): F[Unit] =
         for {
           _     <- Logger[F].debug(show"Deleting [$bucket/$key]...")
-          token <- TokenProvider[F].getToken(Scope)
+          token <- TokenProvider[F].getAccessToken(Scope)
           _     <- basicRequest
                      .delete(uri"https://storage.googleapis.com/storage/v1/b/${bucket.value}/o/${key.value}")
                      .header("Authorization", s"Bearer ${token.value}")
@@ -93,7 +93,7 @@ object Storage {
       override def get(bucket: Bucket, key: Key): F[Option[Stream[F, Byte]]] =
         for {
           _      <- Logger[F].debug(show"Getting [$bucket/$key]...")
-          token  <- TokenProvider[F].getToken(Scope)
+          token  <- TokenProvider[F].getAccessToken(Scope)
           result <- basicRequest
                       .get(uri"https://storage.googleapis.com/storage/v1/b/${bucket.value}/o/${key.value}?alt=media")
                       .header("Authorization", s"Bearer ${token.value}")
@@ -114,7 +114,7 @@ object Storage {
       override def list(bucket: Bucket): F[List[Key]] =
         for {
           _      <- Logger[F].debug(show"Listing bucket [$bucket]...")
-          token  <- TokenProvider[F].getToken(Scope)
+          token  <- TokenProvider[F].getAccessToken(Scope)
           result <- basicRequest
                       .get(uri"https://storage.googleapis.com/storage/v1/b/${bucket.value}/o")
                       .header("Authorization", s"Bearer ${token.value}")
@@ -147,7 +147,7 @@ object Storage {
       override def exists(bucket: Bucket, key: Key): F[Boolean] =
         for {
           _      <- Logger[F].debug(show"Checking existence of [$bucket/$key]...")
-          token  <- TokenProvider[F].getToken(Scope)
+          token  <- TokenProvider[F].getAccessToken(Scope)
           result <- basicRequest
                       .get(uri"https://storage.googleapis.com/storage/v1/b/${bucket.value}/o/${key.value}?alt=json")
                       .header("Authorization", s"Bearer ${token.value}")

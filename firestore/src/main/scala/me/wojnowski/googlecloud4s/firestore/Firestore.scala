@@ -34,8 +34,8 @@ import io.circe.generic.extras.semiauto.deriveUnwrappedDecoder
 import io.circe.generic.semiauto.deriveDecoder
 import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
 import me.wojnowski.googlecloud4s.ProjectId
-import me.wojnowski.googlecloud4s.auth.Scope
-import me.wojnowski.googlecloud4s.auth.Token
+import me.wojnowski.googlecloud4s.auth.AccessToken
+import me.wojnowski.googlecloud4s.auth.Scopes
 import me.wojnowski.googlecloud4s.firestore.Firestore.FieldFilter.Operator
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields.MyMap
@@ -222,10 +222,10 @@ object Firestore {
       implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
 
       val baseUri = uriOverride.fold(uri"https://firestore.googleapis.com")(u => uri"$u")
-      val scope = Scope("https://www.googleapis.com/auth/datastore")
+      val scope = Scopes("https://www.googleapis.com/auth/datastore")
 
-      private def getToken: F[Either[Error.AuthError, Token]] =
-        TokenProvider[F].getToken(scope).mapError2 {
+      private def getToken: F[Either[Error.AuthError, AccessToken]] =
+        TokenProvider[F].getAccessToken(scope).mapError2 {
           case e: TokenProvider.Error => Error.AuthError(e)
         }
 

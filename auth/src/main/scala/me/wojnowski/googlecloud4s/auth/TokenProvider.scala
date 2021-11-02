@@ -14,7 +14,9 @@ import java.time.Duration
 import scala.util.control.NonFatal
 
 trait TokenProvider[F[_]] {
-  def getToken(scope: Scope): F[Token]
+  def getAccessToken(scopes: Scopes): F[AccessToken]
+
+  def getIdentityToken(audience: TargetAudience): F[IdentityToken]
 }
 
 object TokenProvider {
@@ -26,6 +28,9 @@ object TokenProvider {
     case class JwtCreationFailure(cause: Throwable) extends Error
 
     case class UnexpectedResponse(details: String) extends Error
+
+    case class InvalidJwt(cause: Throwable) extends Error
+    case object NoExpirationInIdentityToken extends Error
 
     case class CommunicationError(cause: Throwable) extends Error
     case object AlgorithmNotFound extends Error
