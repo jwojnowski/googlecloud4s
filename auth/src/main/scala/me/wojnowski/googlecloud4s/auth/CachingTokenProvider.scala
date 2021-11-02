@@ -11,14 +11,36 @@ object CachingTokenProvider {
 
   def instance[F[_]: Sync](tokenProvider: TokenProvider[F], expirationBuffer: Duration): F[TokenProvider[F]] =
     for {
-      ref <- Ref.of[F, Map[Scope, Token]](Map.empty)
+      ref <- Ref.of[F, (Map[Scopes, AccessToken], Map[TargetAudience, IdentityToken])]((Map.empty, Map.empty))
       now <- Clock[F].realTimeInstant
     } yield new TokenProvider[F] {
 
-      override def getToken(scope: Scope): F[Token] =
-        ref.get.map(_.get(scope).filter(_.expires.minus(expirationBuffer).isAfter(now))).flatMap {
+      override def getAccessToken(scopes: Scopes): F[AccessToken] =
+        ref.get.map(_._1.get(scopes).filter(_.expires.minus(expirationBuffer).isAfter(now))).flatMap {
           case Some(token) => token.pure[F]
-          case None        => tokenProvider.getToken(scope).flatTap(token => ref.update(_.updated(scope, token)))
+          case None        =>
+            tokenProvider
+              .getAccessToken(scopes)
+              .flatTap(token =>
+                ref.update {
+                  case (accessTokens, identityTokens) =>
+                    (accessTokens.updated(scopes, token), identityTokens)
+                }
+              )
+        }
+
+      override def getIdentityToken(audience: TargetAudience): F[IdentityToken] =
+        ref.get.map(_._2.get(audience).filter(_.expires.minus(expirationBuffer).isAfter(now))).flatMap {
+          case Some(token) => token.pure[F]
+          case None        =>
+            tokenProvider
+              .getIdentityToken(audience)
+              .flatTap(token =>
+                ref.update {
+                  case (accessTokens, identityTokens) =>
+                    (accessTokens, identityTokens.updated(audience, token))
+                }
+              )
         }
 
     }

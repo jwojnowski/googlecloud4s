@@ -1,3 +1,3 @@
 package me.wojnowski.googlecloud4s.auth
 
-case class Scope(value: String)
+case class TargetAudience(value: String)

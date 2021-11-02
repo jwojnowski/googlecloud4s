@@ -7,7 +7,7 @@ import cats.syntax.all._
 import eu.timepit.refined
 import eu.timepit.refined.api.Refined
 import me.wojnowski.googlecloud4s.ProjectId
-import me.wojnowski.googlecloud4s.auth.Scope
+import me.wojnowski.googlecloud4s.auth.Scopes
 import me.wojnowski.googlecloud4s.auth.TokenProvider
 import me.wojnowski.googlecloud4s.pubsub.PubSub.Error.UnexpectedResponse
 import org.typelevel.log4cats.Logger
@@ -43,12 +43,12 @@ object PubSub {
       implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
 
       val baseUri: Uri = uriOverride.fold(uri"https://pubsub.googleapis.com")(u => uri"$u")
-      val scope = Scope("https://www.googleapis.com/auth/pubsub")
+      val scope = Scopes("https://www.googleapis.com/auth/pubsub")
 
       override def createTopic(topic: Topic): F[Unit] = {
         for {
           _        <- Logger[F].debug(s"Creating topic [${topic.name}]...")
-          token    <- tokenProvider.getToken(scope)
+          token    <- tokenProvider.getAccessToken(scope)
           response <- backend
                         .send(
                           basicRequest
@@ -65,7 +65,7 @@ object PubSub {
       override def publish(topic: Topic, messages: NonEmptyList[OutgoingMessage]): F[Unit] = {
         for {
           _        <- Logger[F].debug(s"Publishing [${messages.size}] message(s) to topic [${topic.name}]...")
-          token    <- tokenProvider.getToken(scope)
+          token    <- tokenProvider.getAccessToken(scope)
           response <- backend
                         .send(
                           basicRequest
