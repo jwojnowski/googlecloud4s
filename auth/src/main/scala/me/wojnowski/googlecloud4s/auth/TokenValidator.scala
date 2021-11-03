@@ -1,5 +1,6 @@
 package me.wojnowski.googlecloud4s.auth
 
+import cats.data.OptionT
 import cats.effect.Clock
 import cats.effect.Sync
 import cats.syntax.all._
@@ -15,7 +16,6 @@ import java.security.cert.CertificateFactory
 import java.time.ZoneId
 import java.util.Base64
 import scala.util.control.NoStackTrace
-import scala.util.control.NonFatal
 
 // TODO caching of the certs
 trait TokenValidator[F[_]] {
@@ -23,6 +23,8 @@ trait TokenValidator[F[_]] {
 }
 
 object TokenValidator {
+
+  def apply[F[_]](implicit ev: TokenValidator[F]): TokenValidator[F] = ev
 
   def instance[F[_]: Sync](implicit backend: SttpBackend[F, Any]): TokenValidator[F] =
     new TokenValidator[F] {
@@ -44,18 +46,19 @@ object TokenValidator {
           }
         }
 
-      private def validateToken(rawToken: String): F[Option[JwtClaim]] =
+      private def validateToken(rawToken: String): F[Option[JwtClaim]] = {
         for {
-          instant   <- Clock[F].realTimeInstant
+          instant   <- OptionT.liftF(Clock[F].realTimeInstant)
           javaClock = java.time.Clock.fixed(instant, ZoneId.of("UTC"))
-          kid       <- Sync[F].fromEither(extractKid(rawToken)).adaptError {
-                         case NonFatal(_) => Error.CouldNotExtractKid
-                       }
-          publicKey <- getPublicKey(kid)
-        } yield Jwt(javaClock)
-          .decode(rawToken, publicKey)
-          .toOption
-          .filter(_.issuer.forall(_ === expectedIssuer))
+          kid       <- OptionT.fromOption(extractKid(rawToken).toOption)
+          publicKey <- OptionT.liftF(getPublicKey(kid))
+          claim     <- OptionT.fromOption(
+                         Jwt(javaClock)
+                           .decode(rawToken, publicKey)
+                           .toOption
+                       )
+        } yield claim
+      }.filter(_.issuer.forall(_ === expectedIssuer)).value
 
       private def getPublicKey(kid: String): F[PublicKey] = {
         import sttp.client3._
