@@ -46,7 +46,7 @@ lazy val Versions = new {
 
   val cats = new {
     val core = "2.6.1"
-    val effect = "3.2.5"
+    val effect = "3.2.9"
   }
 
   val log4cats = "2.1.1"
@@ -88,7 +88,11 @@ lazy val auth = (project in file("auth"))
       Seq(
         name := "googlecloud4s-auth",
         libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.5.0",
-        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.0.1"
+        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.0.1",
+        libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test,
+        libraryDependencies += "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
+        libraryDependencies += "org.typelevel" %% "cats-effect-kernel-testkit" % Versions.cats.effect % Test,
+        libraryDependencies += "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % "3.3.16" % Test,
       )
   )
 
@@ -111,7 +115,7 @@ lazy val firestore = (project in file("firestore"))
       name := "googlecloud4s-firestore",
       libraryDependencies ++= List(
         "co.fs2" %% "fs2-core",
-        "co.fs2" %% "fs2-io",
+        "co.fs2" %% "fs2-io"
       ).map(_ % Versions.fs2) ++ List(
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
@@ -144,11 +148,11 @@ lazy val pubsub = (project in file("pubsub"))
         "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainersScalaMunit % Test,
         "org.testcontainers" % "gcloud" % Versions.testContainers % Test
       ),
-      Test / fork := true,
+      Test / fork := true
     )
   )
 
-addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full)
+addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.full)
 addCompilerPlugin("com.kubukoz" % "better-tostring" % "0.3.6" cross CrossVersion.full)
 
 val root = project
