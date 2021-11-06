@@ -19,7 +19,7 @@ object TestClock {
 
   def ref[F[_]: Sync](ref: Ref[F, Instant]): Clock[F] = liftF(ref.get)
 
-  def liftF[F[_]: Monad](f: F[Instant]) =
+  def liftF[F[_]: Monad](f: F[Instant]): Clock[F] =
     new Clock[F] {
       override def applicative: Applicative[F] = Applicative[F]
 
