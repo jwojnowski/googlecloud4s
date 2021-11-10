@@ -91,7 +91,7 @@ object CredentialsTokenProvider {
           expiresAt = issuedAt.plusSeconds(60 * 60)
           token    <- sttpBackend
                         .send(
-                          createRequest(credentials.tokenUri, issuedAt, expiresAt, Map("scopes" -> scopes.values.toList.mkString(" ")))
+                          createRequest(credentials.tokenUri, issuedAt, expiresAt, Map("scope" -> scopes.values.toList.mkString(" ")))
                         )
                         .adaptError {
                           case NonFatal(t) => CommunicationError(t)
@@ -110,7 +110,7 @@ object CredentialsTokenProvider {
                                 }
                             case Left(throwable) =>
                               logger.error(throwable)(
-                                s"Failed to get access token for scope [$scopes] based on credentials, HTTP status: ${response.code.code}, response: [${response.body}]"
+                                s"Failed to get access token for scopes [$scopes] based on credentials, HTTP status: ${response.code.code}, response: [${response.body}]"
                               ) *>
                                 UnexpectedResponse(s"Status: ${response.code.code}").raiseError[F, AccessToken]
                           }
