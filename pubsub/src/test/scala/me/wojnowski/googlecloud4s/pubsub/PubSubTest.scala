@@ -20,7 +20,7 @@ import java.time.Instant
 
 class PubSubTest extends CatsEffectSuite with TestContainerForAll {
 
-  val containerDef = PubSubEmulatorContainer.Def()
+  val containerDef: PubSubEmulatorContainer.Def = PubSubEmulatorContainer.Def()
 
   val topic = Topic("test-topic")
   val projectId = ProjectId("test-project")

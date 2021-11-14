@@ -11,7 +11,6 @@ import io.circe.Encoder
 import io.circe.Json
 import io.circe.JsonObject
 import io.circe.syntax._
-import io.circe.literal._
 import sttp.client3._
 import sttp.client3.circe._
 
@@ -26,12 +25,8 @@ import eu.timepit.refined.api.Refined
 import fs2.Chunk
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-import io.circe.Codec
 import io.circe.Decoder
 import io.circe.HCursor
-import io.circe.generic.extras.semiauto.deriveUnwrappedCodec
-import io.circe.generic.extras.semiauto.deriveUnwrappedDecoder
-import io.circe.generic.semiauto.deriveDecoder
 import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
 import me.wojnowski.googlecloud4s.ProjectId
 import me.wojnowski.googlecloud4s.auth.AccessToken
@@ -96,7 +91,7 @@ object Firestore {
 
     def fullyQualified(value: String): Name = FullyQualified(value)
 
-    implicit val fullyQualifiedNameDecoder: Decoder[FullyQualified] = deriveUnwrappedDecoder
+    implicit val fullyQualifiedNameDecoder: Decoder[FullyQualified] = Decoder[String].map(FullyQualified.apply)
 
     implicit val show: Show[Name] = Show.fromToString
   }
@@ -106,7 +101,10 @@ object Firestore {
   }
 
   object Collection {
-    implicit val codec: Codec[Collection] = deriveUnwrappedCodec
+
+    implicit val encoder: Encoder[Collection] = Encoder[String].contramap(_.value)
+    implicit val decoder: Decoder[Collection] = Decoder[String].map(Collection.apply)
+
   }
 
   sealed trait Error extends ProductSerializableNoStacktrace
@@ -128,7 +126,7 @@ object Firestore {
   object FirestoreDocument {
 
     implicit val decoder: Decoder[FirestoreDocument] =
-      deriveDecoder[FirestoreDocument]
+      Decoder.forProduct3[FirestoreDocument, Name.FullyQualified, Fields, Instant]("name", "fields", "updateTime")(FirestoreDocument.apply)
 
     case class Fields(value: Map[String, FirestoreData]) {
       def toFirestoreData: FirestoreData =
@@ -143,7 +141,7 @@ object Firestore {
         Encoder[Map[String, JsonObject]].contramap(x => Functor[MyMap].fmap(x.value)(_.json))
 
       implicit val decoder: Decoder[Fields] =
-        Decoder[Map[String, JsonObject]].map(map => Fields(Functor[MyMap].fmap(map)(FirestoreData)))
+        Decoder[Map[String, JsonObject]].map(map => Fields(Functor[MyMap].fmap(map)(FirestoreData.apply)))
 
       def fromFirestoreData(data: FirestoreData): Either[String, Fields] =
         data
@@ -168,17 +166,15 @@ object Firestore {
 
     implicit val encoder: Encoder[FieldFilter] =
       Encoder.instance { filter =>
-        json"""
-          {
-            "fieldFilter": {
-              "field": {
-                "fieldPath": ${filter.fieldPath}
-              },
-              "op": ${filter.operator.value},
-              "value": ${filter.value.json}
-            }
-          }
-        """
+        JsonObject(
+          "fieldFilter" -> JsonObject(
+            "field" -> JsonObject(
+              "fieldPath" -> filter.fieldPath.asJson
+            ).asJson,
+            "op" -> filter.operator.value.asJson,
+            "value" -> filter.value.json.asJson
+          ).asJson
+        ).asJson
       }
 
     sealed trait Operator extends Product with Serializable {
@@ -230,7 +226,7 @@ object Firestore {
         }
 
       private def encodeFields[V: FirestoreCodec](value: V): F[Either[Error.EncodingFailure, FirestoreDocument.Fields]] =
-        FirestoreDocument.Fields.fromFirestoreData(value.asFirestoreData).leftMap(Error.EncodingFailure).pure[F]
+        FirestoreDocument.Fields.fromFirestoreData(value.asFirestoreData).leftMap(Error.EncodingFailure.apply).pure[F]
 
       override def add[V: FirestoreCodec](collection: Collection, value: V): F[String] = {
         for {
@@ -245,7 +241,7 @@ object Firestore {
                           .body(JsonObject("fields" -> fields.asJson))
                           .response(asJson[Json])
                       }
-                      .mapError(Error.CommunicationError)
+                      .mapError(Error.CommunicationError.apply)
                       .flatMap {
                         _.body match {
                           case Right(json)              =>
@@ -285,7 +281,7 @@ object Firestore {
                                  .body(JsonObject("fields" -> encodedFields.asJson))
                                  .response(asJson[Json])
                              }
-                             .mapError(Error.CommunicationError)
+                             .mapError(Error.CommunicationError.apply)
                              .flatMap {
                                _.body match {
                                  case Right(_)                =>
@@ -314,10 +310,14 @@ object Firestore {
                                .post(
                                  uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents:batchGet"
                                )
-                               .body(json"""{
-                                      "documents": ${names
-                                 .map(name => s"projects/${projectId.value}/databases/(default)/documents/$collection/$name}")}
-                                    }""")
+                               .body(
+                                 JsonObject(
+                                   "documents" ->
+                                     names
+                                       .map(name => s"projects/${projectId.value}/databases/(default)/documents/$collection/$name}")
+                                       .asJson
+                                 ).asJson
+                               )
                                .response(asJson[List[HCursor]].getRight)
                            )
                            .flatMap { response =>
@@ -343,7 +343,7 @@ object Firestore {
           getDocument(collection, name)
             .flatMap {
               _.traverse { document =>
-                Sync[F].fromEither(document.as[V].leftMap(Error.DecodingFailure))
+                Sync[F].fromEither(document.as[V].leftMap(Error.DecodingFailure.apply))
               }
             }
             .flatTap { value =>
@@ -363,7 +363,7 @@ object Firestore {
             .flatMap {
               _.traverse { document =>
                 for {
-                  decodedDocument <- Sync[F].fromEither(document.as[V].leftMap(Error.DecodingFailure))
+                  decodedDocument <- Sync[F].fromEither(document.as[V].leftMap(Error.DecodingFailure.apply))
                   _               <- putWithOptimisticLocking(collection, name, f(decodedDocument), Some(document.updateTime))
                 } yield decodedDocument
               } // TODO retries
@@ -392,7 +392,7 @@ object Firestore {
                           )
                           .response(asJson[FirestoreDocument])
                       )
-                      .mapError(Error.CommunicationError)
+                      .mapError(Error.CommunicationError.apply)
                       .flatMap { response =>
                         response.body match {
                           case Right(json)                           =>
@@ -417,7 +417,7 @@ object Firestore {
         pageSize: Int = 50
       ): Stream[F, (Name.FullyQualified, Either[Error.DecodingFailure, V])] =
         streamOfDocuments(collection, filters, orderBy, pageSize)
-          .map(document => document.name -> document.as[V].leftMap(Error.DecodingFailure))
+          .map(document => document.name -> document.as[V].leftMap(Error.DecodingFailure.apply))
 
       override def streamLogFailures[V: FirestoreCodec](
         collection: Collection,
@@ -445,58 +445,53 @@ object Firestore {
         def fetchPage(maybeLast: Option[FirestoreDocument], readTime: Instant, limit: Int) = {
           def createRequestBody: Json = {
             val where = fieldFilters.toNel.map { fieldFilters =>
-              json"""
-                    {
-                      "compositeFilter": {
-                        "op": "AND",
-                        "filters": $fieldFilters
-                      }
-                    }
-                  """
+              JsonObject(
+                "compositeFilter" -> JsonObject(
+                  "op" -> "AND".asJson,
+                  "filters" -> fieldFilters.asJson
+                ).asJson
+              )
             }
 
             val orderByWithName = orderBy ++ List(Order("__name__", Direction.Ascending))
 
             val orderByJson = orderByWithName.map { order =>
-              json"""{"field": {"fieldPath": ${order.fieldPath}}, "direction": ${order.direction.productPrefix.toUpperCase}}"""
+              JsonObject(
+                "field" -> JsonObject("fieldPath" -> order.fieldPath.asJson).asJson,
+                "direction" -> order.direction.productPrefix.toUpperCase.asJson
+              ).asJson
             }.asJson
 
             val query =
-              json"""
-                {
-                    "from": [
-                      {
-                        "collectionId": $collection
-                      }
-                    ],
-                    "limit": $limit,
-                    "where": $where,
-                    "orderBy": $orderByJson
-                  }
-                """.deepMerge(
-                JsonObject
-                  .fromIterable(maybeLast.map { lastDocument =>
-                    val values =
-                      orderBy.map(order => lastDocument.fields.value.apply(order.fieldPath)) :+
-                        FirestoreData(
-                          JsonObject("referenceValue" -> lastDocument.name.full.asJson)
-                        )
+              JsonObject(
+                "from" -> List(
+                  JsonObject("collectionId" -> collection.asJson)
+                ).asJson,
+                "limit" -> limit.asJson,
+                "where" -> where.asJson,
+                "orderBy" -> orderByJson
+              ).asJson
+                .deepMerge(
+                  JsonObject
+                    .fromIterable(maybeLast.map { lastDocument =>
+                      val values =
+                        orderBy.map(order => lastDocument.fields.value.apply(order.fieldPath)) :+
+                          FirestoreData(
+                            JsonObject("referenceValue" -> lastDocument.name.full.asJson)
+                          )
 
-                    "startAt" ->
-                      json"""{
-                        "values": ${values.map(_.json.asJson)},
-                        "before": false
-                      }"""
-                  })
-                  .asJson
-              )
-
-            json"""
-                {
-                  "structuredQuery": $query,
-                  "readTime": $readTime
-                }
-                """
+                      "startAt" ->
+                        JsonObject(
+                          "values" -> values.map(_.json.asJson).asJson,
+                          "before" -> false.asJson
+                        ).asJson
+                    })
+                    .asJson
+                )
+            JsonObject(
+              "structuredQuery" -> query.asJson,
+              "readTime" -> readTime.asJson
+            ).asJson
           }
 
           for {
@@ -516,7 +511,7 @@ object Firestore {
                         .send(
                           request
                         )
-                        .mapError(Error.CommunicationError)
+                        .mapError(Error.CommunicationError.apply)
                         .flatMap { response =>
                           response.body match {
                             case Right(jsons)            =>
@@ -576,7 +571,7 @@ object Firestore {
                           .header("Authorization", s"Bearer ${token.value}")
                           .delete(uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents/$collection/${name.short}")
                       }
-                      .mapError(Error.CommunicationError)
+                      .mapError(Error.CommunicationError.apply)
                       .flatMap { response =>
                         if (response.isSuccess)
                           Logger[F].info(s"Deleted [$collection/$name].")

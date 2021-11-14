@@ -71,7 +71,7 @@ object FirestoreCodec {
                 Right(value)
             }
 
-          convert(data.json).flatMap(_.asJson.as[A]).leftMap(Error)
+          convert(data.json).flatMap(_.asJson.as[A]).leftMap(Error.apply)
         }
 
       }
