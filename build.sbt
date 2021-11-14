@@ -75,10 +75,7 @@ lazy val core = (project in file("core"))
         libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2" % Versions.sttp, // TODO is this required here?
         libraryDependencies += "com.softwaremill.sttp.client3" %% "circe" % Versions.sttp,
         libraryDependencies += "io.circe" %% "circe-core" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-generic" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-generic-extras" % Versions.circe cross CrossVersion.for3Use2_13,
         libraryDependencies += "io.circe" %% "circe-refined" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-literal" % Versions.circe cross CrossVersion.for3Use2_13,
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test
       )
   )

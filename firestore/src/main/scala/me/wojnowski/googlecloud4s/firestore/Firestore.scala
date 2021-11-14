@@ -11,7 +11,6 @@ import io.circe.Encoder
 import io.circe.Json
 import io.circe.JsonObject
 import io.circe.syntax._
-import io.circe.literal._
 import sttp.client3._
 import sttp.client3.circe._
 

@@ -3,7 +3,7 @@ stages:
   - publish
 
 test:
-  image: hseeberger/scala-sbt:graalvm-ce-21.2.0-java11_1.5.5_2.13.6
+  image: hseeberger/scala-sbt:graalvm-ce-21.3.0-java11_1.5.5_3.1.0
   stage: test
   services:
     - docker:dind

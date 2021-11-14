@@ -40,7 +40,6 @@ object PubSub {
     new PubSub[F] {
       import sttp.client3._
       import sttp.client3.circe._
-      import io.circe.literal._
 
       implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
 
