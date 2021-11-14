@@ -2,11 +2,17 @@ package me.wojnowski.googlecloud4s.storage
 
 import cats.Show
 import io.circe.Codec
-import io.circe.generic.extras.semiauto.deriveUnwrappedCodec
+import io.circe.Decoder
+import io.circe.Encoder
 
 case class Key(value: String) extends AnyVal
 
 object Key {
-  implicit val codec: Codec[Key] = deriveUnwrappedCodec
+
+  val codec: Codec[Key] = Codec.from(
+    Decoder[String].map(Key.apply),
+    Encoder[String].contramap(_.value)
+  )
+
   implicit val show: Show[Key] = Show.show(_.value)
 }

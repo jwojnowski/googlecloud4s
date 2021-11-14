@@ -97,7 +97,7 @@ object Storage {
           result <- basicRequest
                       .get(uri"https://storage.googleapis.com/storage/v1/b/${bucket.value}/o/${key.value}?alt=media")
                       .header("Authorization", s"Bearer ${token.value}")
-                      .response(asStreamUnsafe(Fs2Streams[F]))
+                      .response(asStreamUnsafe[Fs2Streams[F]](Fs2Streams[F]))
                       .readTimeout(timeout)
                       .send(sttpBackend)
                       .flatMap { response =>

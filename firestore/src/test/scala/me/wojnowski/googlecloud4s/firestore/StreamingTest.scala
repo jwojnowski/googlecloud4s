@@ -39,7 +39,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll {
 
   import FirestoreCodec.circe._
 
-  implicit val tokenProvider = new TokenProvider[IO] {
+  implicit val tokenProvider: TokenProvider[IO] = new TokenProvider[IO] {
 
     override def getAccessToken(scopes: Scopes): IO[AccessToken] =
       IO.pure(

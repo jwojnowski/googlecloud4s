@@ -5,6 +5,7 @@ import cats.effect.IO
 import munit.CatsEffectSuite
 import sttp.client3.impl.cats.CatsMonadAsyncError
 import sttp.client3.testing.SttpBackendStub
+import sttp.client3.SttpBackend
 
 import java.time.Instant
 
@@ -24,7 +25,8 @@ class TokenValidatorTest extends CatsEffectSuite {
   test("Correct IdentityToken") {
     implicit val clock: Clock[IO] = TestClock.constant(tokenAExpiration.minusSeconds(3))
 
-    implicit val backend = SttpBackendStub.apply[IO, Any](new CatsMonadAsyncError).whenAnyRequest.thenRespond(trueGoogleCerts)
+    implicit val backend: SttpBackend[IO, Any] =
+      SttpBackendStub.apply[IO, Any](new CatsMonadAsyncError).whenAnyRequest.thenRespond(trueGoogleCerts)
 
     TokenValidator.instance[IO](TestClock.syncWithDelegatedClock[IO](clock), backend).validateIdentityToken(tokenA).map { result =>
       assertEquals(result, Some(TargetAudience("http://example.com")))
@@ -34,7 +36,8 @@ class TokenValidatorTest extends CatsEffectSuite {
   test("Expired IdentityToken") {
     implicit val clock: Clock[IO] = TestClock.constant(tokenAExpiration.plusSeconds(3))
 
-    implicit val backend = SttpBackendStub.apply[IO, Any](new CatsMonadAsyncError).whenAnyRequest.thenRespond(trueGoogleCerts)
+    implicit val backend: SttpBackend[IO, Any] =
+      SttpBackendStub.apply[IO, Any](new CatsMonadAsyncError).whenAnyRequest.thenRespond(trueGoogleCerts)
 
     TokenValidator.instance[IO](TestClock.syncWithDelegatedClock[IO](clock), backend).validateIdentityToken(tokenA).map { result =>
       assertEquals(result, None)

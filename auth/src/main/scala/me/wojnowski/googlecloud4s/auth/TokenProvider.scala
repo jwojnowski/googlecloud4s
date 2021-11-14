@@ -4,12 +4,12 @@ import cats.effect.Sync
 import cats.effect.kernel.Async
 import cats.syntax.all._
 import fs2.io.file.Files
+import fs2.io.file.Path
 import io.circe.parser._
 import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
 import me.wojnowski.googlecloud4s.auth.TokenProvider.Error._
 import sttp.client3.SttpBackend
 
-import java.nio.file.Paths
 import java.time.Duration
 import scala.util.control.NonFatal
 
@@ -44,8 +44,8 @@ object TokenProvider {
     Sync[F].delay(sys.env.get("GOOGLE_APPLICATION_CREDENTIALS")).flatMap {
       case Some(path) =>
         Files[F]
-          .readAll(Paths.get(path), chunkSize = 4096)
-          .through(fs2.text.utf8Decode)
+          .readAll(Path(path))
+          .through(fs2.text.utf8.decode)
           .compile
           .string
           .flatMap { rawCredentials =>
