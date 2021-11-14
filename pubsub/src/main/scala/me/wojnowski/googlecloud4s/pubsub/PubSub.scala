@@ -6,6 +6,8 @@ import sttp.client3.SttpBackend
 import cats.syntax.all._
 import eu.timepit.refined
 import eu.timepit.refined.api.Refined
+import io.circe.JsonObject
+import io.circe.syntax.EncoderOps
 import me.wojnowski.googlecloud4s.ProjectId
 import me.wojnowski.googlecloud4s.auth.Scopes
 import me.wojnowski.googlecloud4s.auth.TokenProvider
@@ -38,7 +40,6 @@ object PubSub {
     new PubSub[F] {
       import sttp.client3._
       import sttp.client3.circe._
-      import io.circe.literal._
 
       implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
 
@@ -71,9 +72,11 @@ object PubSub {
                           basicRequest
                             .post(uri"$baseUri/v1/projects/${projectId.value}/topics/${topic.name}:publish")
                             .header("Authorization", s"Bearer ${token.value}")
-                            .body(json"""{
-                           "messages": $messages
-                         }""")
+                            .body(
+                              JsonObject(
+                                "messages" -> messages.asJson
+                              )
+                            )
                         )
           _        <- response.code match {
                         case code if code.isSuccess => ().pure[F]

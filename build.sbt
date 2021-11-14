@@ -6,10 +6,11 @@ idePackagePrefix := Some("me.wojnowski.googlecloud4s")
 
 scalacOptions += "-Ypartial-unification"
 
-val Scala213 = "2.13.5"
+val Scala213 = "2.13.7"
+val Scala3 = "3.1.0"
 
-ThisBuild / scalaVersion := Scala213
-ThisBuild / crossScalaVersions := Seq(Scala213)
+ThisBuild / scalaVersion := Scala3
+ThisBuild / crossScalaVersions := Seq(Scala213, Scala3)
 ThisBuild / organization := "me.wojnowski"
 
 val commonSettings = Seq(
@@ -38,7 +39,7 @@ releaseProcess := Seq[ReleaseStep](
 releaseTagName := s"${version.value}"
 
 lazy val Versions = new {
-  val sttp = "3.3.5"
+  val sttp = "3.3.16"
 
   val circe = "0.14.1"
 
@@ -54,9 +55,10 @@ lazy val Versions = new {
   val fuuid = "0.8.0-M2"
 
   val mUnit = "0.7.29"
+  val mUnitCatsEffect = "1.0.6"
 
-  val testContainers = "1.16.0"
-  val testContainersScalaMunit = "0.39.8"
+  val testContainers = "1.16.2"
+  val testContainersScalaMunit = "0.39.11"
 }
 
 lazy val core = (project in file("core"))
@@ -73,10 +75,7 @@ lazy val core = (project in file("core"))
         libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2" % Versions.sttp, // TODO is this required here?
         libraryDependencies += "com.softwaremill.sttp.client3" %% "circe" % Versions.sttp,
         libraryDependencies += "io.circe" %% "circe-core" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-generic" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-generic-extras" % Versions.circe cross CrossVersion.for3Use2_13,
         libraryDependencies += "io.circe" %% "circe-refined" % Versions.circe,
-        libraryDependencies += "io.circe" %% "circe-literal" % Versions.circe cross CrossVersion.for3Use2_13,
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test
       )
   )
@@ -90,7 +89,7 @@ lazy val auth = (project in file("auth"))
         libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.5.0",
         libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.0.1",
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test,
-        libraryDependencies += "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
+        libraryDependencies += "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
         libraryDependencies += "org.typelevel" %% "cats-effect-kernel-testkit" % Versions.cats.effect % Test,
         libraryDependencies += "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % "3.3.16" % Test,
       )
@@ -118,7 +117,7 @@ lazy val firestore = (project in file("firestore"))
         "co.fs2" %% "fs2-io"
       ).map(_ % Versions.fs2) ++ List(
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
-        "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
+        "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
         "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainersScalaMunit % Test,
         "org.testcontainers" % "gcloud" % Versions.testContainers % Test,
         "org.slf4j" % "slf4j-simple" % "1.7.32" % Test
@@ -144,7 +143,7 @@ lazy val pubsub = (project in file("pubsub"))
       name := "googlecloud4s-pubsub",
       libraryDependencies ++= List(
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
-        "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % Test,
+        "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
         "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainersScalaMunit % Test,
         "org.testcontainers" % "gcloud" % Versions.testContainers % Test
       ),
@@ -152,8 +151,14 @@ lazy val pubsub = (project in file("pubsub"))
     )
   )
 
-addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.full)
-addCompilerPlugin("com.kubukoz" % "better-tostring" % "0.3.6" cross CrossVersion.full)
+ThisBuild / libraryDependencies ++= {
+  CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((3, _)) => Seq()
+    case _ => Seq(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full))
+  }
+}
+
+addCompilerPlugin("org.polyvariant" % "better-tostring" % "0.3.11" cross CrossVersion.full)
 
 val root = project
   .in(file("."))

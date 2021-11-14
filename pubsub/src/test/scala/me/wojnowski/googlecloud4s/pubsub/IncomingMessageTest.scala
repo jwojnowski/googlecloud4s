@@ -1,10 +1,10 @@
 package me.wojnowski.googlecloud4s.pubsub
 
 import io.circe.Decoder
-import io.circe.generic.semiauto.deriveDecoder
 import munit.FunSuite
 import io.circe.parser.decode
 import me.wojnowski.googlecloud4s.pubsub.IncomingMessageTest.Foo
+import me.wojnowski.googlecloud4s.pubsub.IncomingMessageTest.fooDecoder
 
 import java.time.OffsetDateTime
 
@@ -78,7 +78,7 @@ class IncomingMessageTest extends FunSuite {
 }
 
 object IncomingMessageTest {
-  private case class Foo(bar: String, baz: Int)
+  case class Foo(bar: String, baz: Int)
 
-  private implicit val fooDecoder: Decoder[Foo] = deriveDecoder
+  implicit val fooDecoder: Decoder[Foo] = Decoder.forProduct2[Foo, String, Int]("bar", "baz")(Foo.apply)
 }
