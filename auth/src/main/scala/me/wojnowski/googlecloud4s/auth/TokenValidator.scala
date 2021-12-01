@@ -4,6 +4,8 @@ import cats.data.OptionT
 import cats.effect.Clock
 import cats.effect.Sync
 import cats.syntax.all._
+import io.circe.Decoder
+import io.circe.HCursor
 import pdi.jwt.Jwt
 import pdi.jwt.JwtClaim
 import sttp.client3.SttpBackend
@@ -20,6 +22,8 @@ import scala.util.control.NoStackTrace
 // TODO caching of the certs
 trait TokenValidator[F[_]] {
   def validateIdentityToken(rawToken: String): F[Option[TargetAudience]]
+
+  def validateAndDecodeIdentityToken[A: Decoder](rawToken: String): F[Option[Either[io.circe.Error, A]]]
 }
 
 object TokenValidator {
@@ -35,16 +39,17 @@ object TokenValidator {
       private val certificateFactory = CertificateFactory.getInstance("X.509")
 
       override def validateIdentityToken(rawToken: String): F[Option[TargetAudience]] =
-        validateToken(rawToken).map {
-          _.flatMap { claim =>
-            io.circe
-              .parser
-              .parse(claim.content)
-              .flatMap(_.hcursor.get[String]("aud"))
+        validateAndDecodeIdentityToken[HCursor](rawToken).map {
+          _.flatMap(_.toOption).flatMap { cursor =>
+            cursor
+              .get[String]("aud")
               .toOption
               .map(TargetAudience.apply)
           }
         }
+
+      override def validateAndDecodeIdentityToken[A: Decoder](rawToken: String): F[Option[Either[io.circe.Error, A]]] =
+        validateToken(rawToken).map(_.map(claim => io.circe.parser.decode[A](claim.content)))
 
       private def validateToken(rawToken: String): F[Option[JwtClaim]] = {
         for {
