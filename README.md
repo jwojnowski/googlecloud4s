@@ -1,8 +1,18 @@
 # googlecloud4s
-Purely functional, Scala library for interaction with Google Cloud Platform.
+Purely functional Scala library for interaction with Google Cloud Platform.
 
 ## Disclaimer
 This is still very much a work in progress project for small, personal apps, so I’d caution against (larger scale, high risk) production use.
+
+## Getting started
+To use this library add the following dependency to your `build.sbt`:
+
+```scala
+"me.wojnowski" %% "googlecloud4s-auth" % "x.y.z"
+"me.wojnowski" %% "googlecloud4s-firestore" % "x.y.z"
+"me.wojnowski" %% "googlecloud4s-storage" % "x.y.z"
+"me.wojnowski" %% "googlecloud4s-pubsub" % "x.y.z"
+```
 
 ## Overview
 The library provides basic support for:
