@@ -12,13 +12,26 @@ val Scala3 = "3.1.0"
 ThisBuild / scalaVersion := Scala3
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala3)
 ThisBuild / organization := "me.wojnowski"
+ThisBuild / scmInfo := Some(ScmInfo(url("https://github.com/jwojnowski/googlecloud4s"), "git@github.com:jwojnowski/googlecloud4s.git"))
+ThisBuild / licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT"))
+ThisBuild / developers := List(
+  Developer(id="jwojnowski", name="Jakub Wojnowski", email="29680262+jwojnowski@users.noreply.github.com", url=url("https://github.com/jwojnowski"))
+)
+
+import xerial.sbt.Sonatype._
+ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
+ThisBuild / sonatypeProjectHosting := Some(GitHubHosting("jwojnowski", "googlecloud4s", "29680262+jwojnowski@users.noreply.github.com"))
+
+ThisBuild / homepage := Some(url("https://github.com/jwojnowski/googlecloud4s"))
+
 
 val commonSettings = Seq(
   makePom / publishArtifact := true,
   publishMavenStyle := true,
   publishConfiguration := publishConfiguration.value.withOverwrite(true),
   publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true),
-  publishM2Configuration := publishM2Configuration.value.withOverwrite(true)
+  publishM2Configuration := publishM2Configuration.value.withOverwrite(true),
+  publishTo := sonatypePublishToBundle.value
 )
 
 import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
