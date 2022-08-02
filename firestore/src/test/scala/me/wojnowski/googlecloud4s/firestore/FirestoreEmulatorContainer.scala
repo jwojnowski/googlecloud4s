@@ -7,9 +7,9 @@ import org.testcontainers.utility.DockerImageName
 
 case class FirestoreEmulatorContainer() extends SingleContainer[JavaFirestoreEmulatorContainer] {
   override val container: JavaFirestoreEmulatorContainer =
-    new JavaFirestoreEmulatorContainer(DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:359.0.0-emulators"))
+    new JavaFirestoreEmulatorContainer(DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:396.0.0-emulators"))
 
-  def uri: String = container.getEmulatorEndpoint
+  def uri: String = "http://" + container.getEmulatorEndpoint
 
 }
 
