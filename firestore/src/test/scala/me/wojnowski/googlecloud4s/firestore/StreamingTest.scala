@@ -1,35 +1,26 @@
 package me.wojnowski.googlecloud4s.firestore
 
 import cats.effect.IO
-import cats.effect.std.Dispatcher
 import com.dimafeng.testcontainers.munit.TestContainerForAll
-import eu.timepit.refined.api.Refined
-import eu.timepit.refined.string.Uri
 import munit.CatsEffectSuite
 import cats.syntax.all._
-import eu.timepit.refined.refineV
 import io.circe.Json
 import io.circe.JsonObject
 import io.circe.syntax.EncoderOps
 import me.wojnowski.googlecloud4s.ProjectId
-import me.wojnowski.googlecloud4s.auth.AccessToken
-import me.wojnowski.googlecloud4s.auth.IdentityToken
-import me.wojnowski.googlecloud4s.auth.Scopes
-import me.wojnowski.googlecloud4s.auth.TargetAudience
+import me.wojnowski.googlecloud4s.TestContainerUtils
 import me.wojnowski.googlecloud4s.auth.TokenProvider
 import me.wojnowski.googlecloud4s.firestore.Firestore.Collection
 import me.wojnowski.googlecloud4s.firestore.Firestore.FieldFilter
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order
-import sttp.capabilities.fs2.Fs2Streams
-import sttp.client3.SttpBackend
-import sttp.client3.httpclient.fs2.HttpClientFs2Backend
 
-import java.time.Instant
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.DurationInt
 
 // TODO add a set of meaningful tests
-class StreamingTest extends CatsEffectSuite with TestContainerForAll {
+class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestContainerUtils {
+
+  override def extractUri: FirestoreEmulatorContainer => String = _.uri
 
   override def munitTimeout: Duration = 1.minute
 
@@ -39,19 +30,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll {
 
   import FirestoreCodec.circe._
 
-  implicit val tokenProvider: TokenProvider[IO] = new TokenProvider[IO] {
-
-    override def getAccessToken(scopes: Scopes): IO[AccessToken] =
-      IO.pure(
-        AccessToken(
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dnZWRJbkFzIjoiYWRtaW4iLCJpYXQiOjE0MjI3Nzk2Mzh9.gzSraSYS8EXBxLN_oWnFSRgCzcmJmMjLiuyu5CSpyHI",
-          Scopes("test"),
-          Instant.EPOCH
-        )
-      )
-
-    override def getIdentityToken(audience: TargetAudience): IO[IdentityToken] = ???
-  }
+  implicit val tokenProvider: TokenProvider[IO] = TokenProviderMock.instance
 
   test("Cursors with orderBy parameters") {
     withContainerUri { uri =>
@@ -83,16 +62,5 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll {
       }
     }
   }
-
-  // TODO these are copy-pasted from PubSub
-  private def withSttpBackend[A](f: SttpBackend[IO, Fs2Streams[IO]] => IO[A]): IO[A] =
-    Dispatcher[IO].use { dispatcher =>
-      HttpClientFs2Backend(dispatcher).flatMap(f)
-    }
-
-  private def withContainerUri[A](f: String Refined Uri => IO[A]) =
-    withContainers { containers =>
-      IO.fromEither(refineV[Uri]("http://" + containers.container.getEmulatorEndpoint).leftMap(new IllegalArgumentException(_))).flatMap(f)
-    }
 
 }

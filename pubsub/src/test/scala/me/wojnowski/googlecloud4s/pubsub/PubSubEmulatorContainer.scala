@@ -7,9 +7,9 @@ import org.testcontainers.utility.DockerImageName
 
 case class PubSubEmulatorContainer() extends SingleContainer[JavaPubSubEmulatorContainer] {
   override val container: JavaPubSubEmulatorContainer =
-    new JavaPubSubEmulatorContainer(DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:359.0.0-emulators"))
+    new JavaPubSubEmulatorContainer(DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:396.0.0-emulators"))
 
-  def uri: String = container.getEmulatorEndpoint
+  def uri: String = "http://" + container.getEmulatorEndpoint
 
 }
 
