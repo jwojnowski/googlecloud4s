@@ -10,10 +10,7 @@ import munit.CatsEffectSuite
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.DurationInt
 import cats.syntax.all._
-import io.circe.Decoder
-import io.circe.Encoder
 import me.wojnowski.googlecloud4s.firestore.Firestore.Collection
-import me.wojnowski.googlecloud4s.firestore.OptimisticLockingTest.TestDocument
 import sttp.client3.testing.RecordingSttpBackend
 
 /* Firestore emulator always fails with:
@@ -43,8 +40,8 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
         val firestore = Firestore.instance[IO](recordingBackend, projectId, uri.some, optimisticLockingAttempts = attempts)
 
         for {
-          name   <- firestore.add(collection, TestDocument(counter = 0)).map(Firestore.Name.Short.apply)
-          result <- firestore.update[TestDocument](collection, name, document => document.copy(document.counter + 1)).attempt
+          name   <- firestore.add(collection, TestDocumentWithCounter(counter = 0))
+          result <- firestore.update[TestDocumentWithCounter](collection, name, document => document.copy(document.counter + 1)).attempt
           patchRequestsCount = recordingBackend.allInteractions.count {
                                  case (request, _) => request.method == sttp.model.Method.PATCH
                                }
@@ -54,12 +51,4 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
   }
 
   override def extractUri: FirestoreEmulatorContainer => String = _.uri
-}
-
-object OptimisticLockingTest {
-  case class TestDocument(counter: Int)
-
-  implicit val encoder: Encoder[TestDocument] = Encoder.forProduct1("counter")(_.counter)
-  implicit val decoder: Decoder[TestDocument] = Decoder.forProduct1("counter")(TestDocument.apply)
-
 }
