@@ -9,7 +9,7 @@ scalacOptions += "-Ypartial-unification"
 val Scala213 = "2.13.7"
 val Scala3 = "3.1.0"
 
-ThisBuild / scalaVersion := Scala3
+ThisBuild / scalaVersion := Scala213
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala3)
 ThisBuild / organization := "me.wojnowski"
 ThisBuild / scmInfo := Some(ScmInfo(url("https://github.com/jwojnowski/googlecloud4s"), "git@github.com:jwojnowski/googlecloud4s.git"))
