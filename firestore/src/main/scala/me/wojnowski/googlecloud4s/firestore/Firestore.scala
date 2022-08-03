@@ -33,7 +33,6 @@ import me.wojnowski.googlecloud4s.auth.AccessToken
 import me.wojnowski.googlecloud4s.auth.Scopes
 import me.wojnowski.googlecloud4s.firestore.Firestore.FieldFilter.Operator
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
-import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields.MyMap
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
 import sttp.model.StatusCode
 
@@ -147,18 +146,16 @@ object Firestore {
 
     case class Fields(value: Map[String, FirestoreData]) {
       def toFirestoreData: FirestoreData =
-        FirestoreData(JsonObject("mapValue" -> JsonObject("fields" -> Functor[MyMap].fmap(value)(_.json.asJson).asJson).asJson))
+        FirestoreData(JsonObject("mapValue" -> JsonObject("fields" -> Functor[Map[String, *]].fmap(value)(_.json.asJson).asJson).asJson))
     }
 
     object Fields {
 
-      type MyMap[A] = Map[String, A] // TODO WTF
-
       implicit val encoder: Encoder[Fields] =
-        Encoder[Map[String, JsonObject]].contramap(x => Functor[MyMap].fmap(x.value)(_.json))
+        Encoder[Map[String, JsonObject]].contramap(x => Functor[Map[String, *]].fmap(x.value)(_.json))
 
       implicit val decoder: Decoder[Fields] =
-        Decoder[Map[String, JsonObject]].map(map => Fields(Functor[MyMap].fmap(map)(FirestoreData.apply)))
+        Decoder[Map[String, JsonObject]].map(map => Fields(Functor[Map[String, *]].fmap(map)(FirestoreData.apply)))
 
       def fromFirestoreData(data: FirestoreData): Either[String, Fields] =
         data
@@ -168,7 +165,7 @@ object Firestore {
           .downField("mapValue")
           .downField("fields")
           .as[Map[String, JsonObject]]
-          .map(fields => Fields(Functor[MyMap].fmap(fields)(obj => FirestoreData(obj))))
+          .map(fields => Fields(Functor[Map[String, *]].fmap(fields)(obj => FirestoreData(obj))))
           .leftMap(_.getMessage) // FIXME
     }
 
