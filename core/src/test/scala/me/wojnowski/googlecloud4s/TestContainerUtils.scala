@@ -11,6 +11,7 @@ import sttp.client3.SttpBackend
 import sttp.client3.httpclient.fs2.HttpClientFs2Backend
 import cats.syntax.all._
 import munit.Suite
+import org.testcontainers.utility.DockerImageName
 
 trait TestContainerUtils {
   this: TestContainerForAll with Suite =>
@@ -27,4 +28,8 @@ trait TestContainerUtils {
       IO.fromEither(refineV[Uri](extractUri(containers)).leftMap(new IllegalArgumentException(_))).flatMap(f)
     }
 
+}
+
+object TestContainerUtils {
+  val dockerImage: DockerImageName = DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:396.0.0-emulators")
 }
