@@ -2,14 +2,14 @@ package me.wojnowski.googlecloud4s.pubsub
 
 import com.dimafeng.testcontainers.ContainerDef
 import com.dimafeng.testcontainers.SingleContainer
+import me.wojnowski.googlecloud4s.TestContainerUtils
 import org.testcontainers.containers.{PubSubEmulatorContainer => JavaPubSubEmulatorContainer}
-import org.testcontainers.utility.DockerImageName
 
 case class PubSubEmulatorContainer() extends SingleContainer[JavaPubSubEmulatorContainer] {
   override val container: JavaPubSubEmulatorContainer =
-    new JavaPubSubEmulatorContainer(DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:359.0.0-emulators"))
+    new JavaPubSubEmulatorContainer(TestContainerUtils.dockerImage)
 
-  def uri: String = container.getEmulatorEndpoint
+  def uri: String = "http://" + container.getEmulatorEndpoint
 
 }
 

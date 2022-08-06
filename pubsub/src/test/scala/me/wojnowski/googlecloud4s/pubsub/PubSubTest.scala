@@ -1,26 +1,22 @@
 package me.wojnowski.googlecloud4s.pubsub
 
 import cats.effect.IO
-import cats.effect.std.Dispatcher
 import cats.syntax.all._
 import com.dimafeng.testcontainers.munit.TestContainerForAll
-import eu.timepit.refined.api.Refined
-import eu.timepit.refined.refineV
-import eu.timepit.refined.string.Uri
 import me.wojnowski.googlecloud4s.ProjectId
+import me.wojnowski.googlecloud4s.TestContainerUtils
 import me.wojnowski.googlecloud4s.auth.AccessToken
 import me.wojnowski.googlecloud4s.auth.Scopes
 import me.wojnowski.googlecloud4s.auth.TokenProvider
 import munit.CatsEffectSuite
-import sttp.capabilities.fs2.Fs2Streams
-import sttp.client3.SttpBackend
-import sttp.client3.httpclient.fs2.HttpClientFs2Backend
 
 import java.time.Instant
 
-class PubSubTest extends CatsEffectSuite with TestContainerForAll {
+class PubSubTest extends CatsEffectSuite with TestContainerForAll with TestContainerUtils {
 
   val containerDef: PubSubEmulatorContainer.Def = PubSubEmulatorContainer.Def()
+
+  override def extractUri: PubSubEmulatorContainer => String = _.uri
 
   val topic = Topic("test-topic")
   val projectId = ProjectId("test-project")
@@ -56,15 +52,5 @@ class PubSubTest extends CatsEffectSuite with TestContainerForAll {
     }
 
   }
-
-  private def withSttpBackend[A](f: SttpBackend[IO, Fs2Streams[IO]] => IO[A]): IO[A] =
-    Dispatcher[IO].use { dispatcher =>
-      HttpClientFs2Backend(dispatcher).flatMap(f)
-    }
-
-  private def withContainerUri[A](f: String Refined Uri => IO[A]) =
-    withContainers { containers =>
-      IO.fromEither(refineV[Uri]("http://" + containers.container.getEmulatorEndpoint).leftMap(new IllegalArgumentException(_))).flatMap(f)
-    }
 
 }

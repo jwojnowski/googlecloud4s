@@ -2,14 +2,14 @@ package me.wojnowski.googlecloud4s.firestore
 
 import com.dimafeng.testcontainers.ContainerDef
 import com.dimafeng.testcontainers.SingleContainer
+import me.wojnowski.googlecloud4s.TestContainerUtils
 import org.testcontainers.containers.{FirestoreEmulatorContainer => JavaFirestoreEmulatorContainer}
-import org.testcontainers.utility.DockerImageName
 
 case class FirestoreEmulatorContainer() extends SingleContainer[JavaFirestoreEmulatorContainer] {
   override val container: JavaFirestoreEmulatorContainer =
-    new JavaFirestoreEmulatorContainer(DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:359.0.0-emulators"))
+    new JavaFirestoreEmulatorContainer(TestContainerUtils.dockerImage)
 
-  def uri: String = container.getEmulatorEndpoint
+  def uri: String = "http://" + container.getEmulatorEndpoint
 
 }
 

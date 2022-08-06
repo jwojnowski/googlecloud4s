@@ -47,7 +47,7 @@ Both `put` and `get` operations use `fs2.Stream[F, Byte]` for data transfer.
 * `add` — without a name, always creates new document)
 * `put` — with a name, creates new or overwrites if documents already exists
 * `get`
-* `update`  — updates a document using a provided function (API ready for optimistic locking, but the implementation itself is yet missing)
+* `update`  — updates a document using a provided function (using optimistic locking)
 * `batchGet`
 * `stream` — streams documents matching very basic filters and sorting
 * `delete`
