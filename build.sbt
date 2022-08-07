@@ -1,7 +1,5 @@
 name := "googlecloud4s"
 
-ThisBuild / isSnapshot := false
-
 idePackagePrefix := Some("me.wojnowski.googlecloud4s")
 
 scalacOptions += "-Ypartial-unification"
@@ -22,6 +20,7 @@ ThisBuild / developers := List(
     url = url("https://github.com/jwojnowski")
   )
 )
+ThisBuild / versionScheme := Some("semver-spec")
 
 import xerial.sbt.Sonatype._
 ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
