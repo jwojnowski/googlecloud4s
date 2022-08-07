@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-version:
+        type: string
+        required: true
+        description: Version to be released (e.g. 0.3.0)
+      next-version:
+        type: string
+        required: true
+        description: Next version to be set (e.g. 0.3.1-SNAPSHOT)
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        scala: [ 3.1.1 ]
+        java: [ graalvm-ce-java17@21.3.0 ]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup GPG
+        run: |
+          echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --batch --import
+          gpg --list-keys
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+      - name: Release and publish
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          echo 'with-defaults release-version ${{ inputs.release-version }} next-version ${{ inputs.next-version }}'
+        #          sbt release with-defaults release-version ${{ inputs.release-version }} next-version ${{ inputs.next-version }}
+        env:
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
