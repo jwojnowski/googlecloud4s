@@ -4,8 +4,8 @@ idePackagePrefix := Some("me.wojnowski.googlecloud4s")
 
 scalacOptions += "-Ypartial-unification"
 
-val Scala213 = "2.13.7"
-val Scala3 = "3.1.0"
+val Scala213 = "2.13.8"
+val Scala3 = "3.1.3"
 
 ThisBuild / scalaVersion := Scala213
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala3)
@@ -47,34 +47,40 @@ releaseProcess := Seq[ReleaseStep](
   setReleaseVersion,
   commitReleaseVersion,
   tagRelease,
+  releaseStepCommandAndRemaining("+publishSigned"),
+  releaseStepCommand("sonatypeBundleRelease"),
   setNextVersion,
   commitNextVersion,
   pushChanges
 )
 
+releaseCrossBuild := true
+
 releaseTagName := s"${version.value}"
 
-lazy val Versions = new {
-  val sttp = "3.3.16"
+releasePublishArtifactsAction := PgpKeys.publishSigned.value
 
-  val circe = "0.14.1"
+lazy val Versions = new {
+  val sttp = "3.7.2"
+
+  val circe = "0.14.2"
 
   val fs2 = "3.1.2"
 
   val cats = new {
-    val core = "2.6.1"
-    val effect = "3.2.9"
+    val core = "2.8.0"
+    val effect = "3.3.14"
   }
 
-  val log4cats = "2.1.1"
+  val log4cats = "2.4.0"
 
   val fuuid = "0.8.0-M2"
 
   val mUnit = "0.7.29"
-  val mUnitCatsEffect = "1.0.6"
+  val mUnitCatsEffect = "1.0.7"
 
-  val testContainers = "1.17.2"
-  val testContainersScalaMunit = "0.40.8"
+  val testContainers = "1.17.3"
+  val testContainersScalaMunit = "0.40.9"
 }
 
 lazy val core = (project in file("core"))
@@ -88,7 +94,7 @@ lazy val core = (project in file("core"))
         libraryDependencies += "org.typelevel" %% "log4cats-core" % Versions.log4cats cross CrossVersion.binary,
         libraryDependencies += "org.typelevel" %% "log4cats-slf4j" % Versions.log4cats,
         libraryDependencies += "com.softwaremill.sttp.client3" %% "core" % Versions.sttp,
-        libraryDependencies += "com.softwaremill.sttp.client3" %% "httpclient-backend-fs2" % Versions.sttp, // TODO is this required here?
+        libraryDependencies += "com.softwaremill.sttp.client3" %% "async-http-client-backend-fs2" % Versions.sttp, // TODO is this required here?
         libraryDependencies += "com.softwaremill.sttp.client3" %% "circe" % Versions.sttp,
         libraryDependencies += "io.circe" %% "circe-core" % Versions.circe,
         libraryDependencies += "io.circe" %% "circe-refined" % Versions.circe,
@@ -104,8 +110,8 @@ lazy val auth = (project in file("auth"))
     commonSettings ++
       Seq(
         name := "googlecloud4s-auth",
-        libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.5.0",
-        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.0.1",
+        libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.8.1",
+        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.0.6",
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test,
         libraryDependencies += "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
         libraryDependencies += "org.typelevel" %% "cats-effect-kernel-testkit" % Versions.cats.effect % Test,
@@ -146,7 +152,7 @@ lazy val logging = (project in file("logging-logback-circe"))
     commonSettings ++ Seq(
       name := "googlecloud4s-logging-logback-circe",
       libraryDependencies ++= List(
-        "ch.qos.logback" % "logback-classic" % "1.2.5",
+        "ch.qos.logback" % "logback-classic" % "1.2.11",
         "io.circe" %% "circe-core" % Versions.circe
       )
     )
@@ -172,7 +178,7 @@ ThisBuild / libraryDependencies ++= {
   }
 }
 
-addCompilerPlugin("org.polyvariant" % "better-tostring" % "0.3.11" cross CrossVersion.full)
+addCompilerPlugin("org.polyvariant" % "better-tostring" % "0.3.16" cross CrossVersion.full)
 
 val root = project
   .in(file("."))
