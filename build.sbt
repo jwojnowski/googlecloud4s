@@ -34,7 +34,10 @@ val commonSettings = Seq(
   publishConfiguration := publishConfiguration.value.withOverwrite(true),
   publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true),
   publishM2Configuration := publishM2Configuration.value.withOverwrite(true),
-  publishTo := sonatypePublishToBundle.value
+  publishTo := sonatypePublishToBundle.value,
+  releaseCrossBuild := true,
+  releaseTagName := s"${version.value}",
+  releasePublishArtifactsAction := PgpKeys.publishSigned.value
 )
 
 import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
@@ -47,18 +50,12 @@ releaseProcess := Seq[ReleaseStep](
   setReleaseVersion,
   commitReleaseVersion,
   tagRelease,
-  releaseStepCommandAndRemaining("+publishSigned"),
+  publishArtifacts,
   releaseStepCommand("sonatypeBundleRelease"),
   setNextVersion,
   commitNextVersion,
   pushChanges
 )
-
-releaseCrossBuild := true
-
-releaseTagName := s"${version.value}"
-
-releasePublishArtifactsAction := PgpKeys.publishSigned.value
 
 lazy val Versions = new {
   val sttp = "3.7.2"
@@ -165,7 +162,7 @@ lazy val pubsub = (project in file("pubsub"))
       name := "googlecloud4s-pubsub",
       libraryDependencies ++= List(
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
-        "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
+        "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test
       ),
       Test / fork := true
     )
