@@ -97,21 +97,22 @@ lazy val core = (project in file("core"))
         libraryDependencies += "io.circe" %% "circe-refined" % Versions.circe,
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test,
         libraryDependencies += "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainersScalaMunit % Test,
-        libraryDependencies += "org.testcontainers" % "gcloud" % Versions.testContainers % Test
+        libraryDependencies += "org.testcontainers" % "gcloud" % Versions.testContainers % Test,
+        libraryDependencies += "org.typelevel" %% "cats-effect-testkit" % Versions.cats.effect % Test,
       )
   )
 
 lazy val auth = (project in file("auth"))
-  .dependsOn(core)
+  .dependsOn(core % "compile->compile;test->test")
   .settings(
     commonSettings ++
       Seq(
         name := "googlecloud4s-auth",
         libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.8.1",
         libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.0.6",
+        libraryDependencies += "com.github.jwt-scala" %% "jwt-circe" % "9.0.6",
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test,
         libraryDependencies += "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
-        libraryDependencies += "org.typelevel" %% "cats-effect-kernel-testkit" % Versions.cats.effect % Test,
         libraryDependencies += "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % "3.3.16" % Test
       )
   )
