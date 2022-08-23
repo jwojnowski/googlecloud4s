@@ -10,13 +10,12 @@ import munit.CatsEffectSuite
 import pdi.jwt.exceptions.JwtEmptySignatureException
 import pdi.jwt.exceptions.JwtExpirationException
 import pdi.jwt.exceptions.JwtValidationException
-import sttp.client3.UriContext
 import sttp.client3.impl.cats.CatsMonadAsyncError
-import sttp.client3.testing.RecordingSttpBackend
 import sttp.client3.testing.SttpBackendStub
 
 import java.time.Instant
 
+// TODO use PublicKeyProvider.static
 class TokenVerifierTest extends CatsEffectSuite {
 
   private val trueGoogleCerts = """{
@@ -89,19 +88,16 @@ class TokenVerifierTest extends CatsEffectSuite {
     }
   }
 
-  test("Overridden issuer and certificatesLocation") {
+  test("Overridden issuer") {
     val tokenWithOtherIssuer =
       "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjExZTAzZjM5YjhkMzAwYzhjOWExYjgwMGRkZWJmY2ZkZTQxNTJjMGMifQ.eyJpc3MiOiJodHRwczovL3RoaXNpc25vdGdvb2dsZS5jb20iLCJzdWIiOiIxMTA3MTI1OTk3NDM3ODI2NDE4NDciLCJhdWQiOiJodHRwOi8vZXhhbXBsZS5jb20iLCJleHAiOjE2MzU4ODUxMzYsImlhdCI6MTYzNTg4MTUzNiwiYXpwIjoiMTEwNzEyNTk5NzQzNzgyNjQxODQ3IiwiZW1haWwiOiIyODMyOTUwMTIxMjgtY29tcHV0ZUBkZXZlbG9wZXIuZ3NlcnZpY2VhY2NvdW50LmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlfQ.gYq-mNgA-_LKvDAbWg7WkA4IK0ObkfVWo2RpJW_GzZM-wvegfbHVnyoF09qNQa1npqFMDeJUnCasl91bTOgUQnBPJoapznSUqm2hZCgF8U8nvd9LrCkm27dpFfO0m22GGeurRNgVryrzcCKr_5y4dVDoAEmaPRPn_R58bENGnRMFsRoSF0wYp_xRZtir2tzgrYVNfQFIec2Wa7iAzdZGtZJHx0i5mkhgZKObksV_Y7pGFx4s4m1FbAaci4TBjDRLzpLFZdfpXnzINZ3fMaHBsfStVPCwARw2AvQAp3lzycp1qZYVBKLa1iGXpKaa_2yq8sf7pgBkDlHlPpUWb6nRpg"
 
-    val recordingBackend = new RecordingSttpBackend(backendWithFakeCerts)
-
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .create[IO](Set("https://thisisnotgoogle.com"), uri"https://overridden.com/certs")(implicitly, recordingBackend)
+        .create[IO](Set("https://thisisnotgoogle.com"), publicKeyProvider = PublicKeyProvider.googleV1[IO]())
         .verifyIdentityToken(tokenWithOtherIssuer)
         .map { result =>
           assertEquals(result, Right(Set(TargetAudience("http://example.com"))))
-          assert(recordingBackend.allInteractions.forall(_._1.uri == uri"https://overridden.com/certs"))
         }
     }
 
