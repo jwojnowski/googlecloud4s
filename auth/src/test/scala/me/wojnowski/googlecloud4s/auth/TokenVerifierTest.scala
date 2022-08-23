@@ -10,13 +10,12 @@ import munit.CatsEffectSuite
 import pdi.jwt.exceptions.JwtEmptySignatureException
 import pdi.jwt.exceptions.JwtExpirationException
 import pdi.jwt.exceptions.JwtValidationException
-import sttp.client3.UriContext
 import sttp.client3.impl.cats.CatsMonadAsyncError
-import sttp.client3.testing.RecordingSttpBackend
 import sttp.client3.testing.SttpBackendStub
 
 import java.time.Instant
 
+// TODO use PublicKeyProvider.static
 class TokenVerifierTest extends CatsEffectSuite {
 
   private val trueGoogleCerts = """{
@@ -89,19 +88,16 @@ class TokenVerifierTest extends CatsEffectSuite {
     }
   }
 
-  test("Overridden issuer and certificatesLocation") {
+  test("Overridden issuer") {
     val tokenWithOtherIssuer =
       "eyJhbGciOiJSUzI1NiIsImtpZCI6IjE3MjdiNmI0OTQwMmI5Y2Y5NWJlNGU4ZmQzOGFhN2U3YzExNjQ0YjEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJodHRwczovL2Nsb3VkdGFza3MuZ29vZ2xlYXBpcy5jb20vdjIvcHJvamVjdHMvZ2Nsb3VkLWRldmVsL2xvY2F0aW9ucyIsImF6cCI6InN0aW0tdGVzdEBzdGVsbGFyLWRheS0yNTQyMjIuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLCJlbWFpbCI6InN0aW0tdGVzdEBzdGVsbGFyLWRheS0yNTQyMjIuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZXhwIjoxNjYwODgwNjczLCJpYXQiOjE2NjA4NzcwNzMsImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbSIsInN1YiI6IjExMjgxMDY3Mjk2MzcyODM2NjQwNiJ9"
 
-    val recordingBackend = new RecordingSttpBackend(backendWithFakeCerts)
-
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .create[IO](Set("https://thisisnotgoogle.com"), uri"https://overridden.com/certs")(implicitly, recordingBackend)
+        .create[IO](Set("https://thisisnotgoogle.com"), publicKeyProvider = PublicKeyProvider.googleV1[IO]())
         .verifyIdentityToken(tokenWithOtherIssuer)
         .map { result =>
           assertEquals(result, Right(Set(TargetAudience("http://example.com"))))
-          assert(recordingBackend.allInteractions.forall(_._1.uri == uri"https://overridden.com/certs"))
         }
     }
 
