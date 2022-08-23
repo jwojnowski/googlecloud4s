@@ -58,7 +58,7 @@ releaseProcess := Seq[ReleaseStep](
 )
 
 lazy val Versions = new {
-  val sttp = "3.7.2"
+  val sttp = "3.7.4"
 
   val circe = "0.14.2"
 
@@ -77,7 +77,7 @@ lazy val Versions = new {
   val mUnitCatsEffect = "1.0.7"
 
   val testContainers = "1.17.3"
-  val testContainersScalaMunit = "0.40.9"
+  val testContainersScalaMunit = "0.40.10"
 }
 
 lazy val core = (project in file("core"))
@@ -109,11 +109,11 @@ lazy val auth = (project in file("auth"))
       Seq(
         name := "googlecloud4s-auth",
         libraryDependencies += "org.scala-lang.modules" %% "scala-collection-compat" % "2.8.1",
-        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.0.6",
-        libraryDependencies += "com.github.jwt-scala" %% "jwt-circe" % "9.0.6",
+        libraryDependencies += "com.github.jwt-scala" %% "jwt-core" % "9.1.0",
+        libraryDependencies += "com.github.jwt-scala" %% "jwt-circe" % "9.1.0",
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test,
         libraryDependencies += "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
-        libraryDependencies += "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % "3.3.16" % Test
+        libraryDependencies += "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % Versions.sttp % Test
       )
   )
 
