@@ -16,6 +16,8 @@ import java.security.spec.X509EncodedKeySpec
 import java.time.Instant
 import java.util.Base64
 import cats.syntax.all._
+import io.circe.Json
+import io.circe.JsonObject
 import me.wojnowski.googlecloud4s.auth.PublicKeyProvider.Error
 import me.wojnowski.googlecloud4s.auth.PublicKeyProvider.KeyId
 import me.wojnowski.googlecloud4s.auth.TokenVerifierTest.staticKeyProvider
@@ -66,6 +68,17 @@ class TokenVerifierTest extends CatsEffectSuite {
         .map {
           case Left(JwtVerificationError(_: JwtExpirationException)) => ()
           case _                                                     => fail("expected JwtExpirationException")
+        }
+    }
+  }
+
+  test("Claim decoding") {
+    runAtInstant(tokenExpiration.minusSeconds(3)) {
+      TokenVerifier
+        .create[IO](staticKeyProvider(trueGoogleKeys))
+        .verifyAndDecodeIdentityToken[JsonObject](tokenA)
+        .map { result =>
+          assertEquals(result.map(_.apply("email_verified")), Right(Some(Json.True)))
         }
     }
   }
