@@ -21,9 +21,7 @@ import java.time.{Clock => JavaClock}
 import java.util.Base64
 import scala.util.Try
 
-// TODO caching of the certs?
 // TODO ES256 support
-// TODO https://www.googleapis.com/oauth2/v3/certs format support
 trait TokenVerifier[F[_]] {
   def verifyIdentityToken(rawToken: String): F[Either[TokenVerifier.Error, Set[TargetAudience]]]
 
@@ -35,14 +33,11 @@ object TokenVerifier {
   def apply[F[_]](implicit ev: TokenVerifier[F]): TokenVerifier[F] = ev
 
   def default[F[_]: Sync](implicit backend: SttpBackend[F, Any]): TokenVerifier[F] =
-    create[F](
-      expectedIssuers = Set("https://accounts.google.com"),
-      publicKeyProvider = PublicKeyProvider.googleV1[F]()
-    )
+    create[F](PublicKeyProvider.jwk[F]())
 
   def create[F[_]: Sync](
-    expectedIssuers: Set[String],
-    publicKeyProvider: PublicKeyProvider[F]
+    publicKeyProvider: PublicKeyProvider[F],
+    expectedIssuers: Set[String] = Set("https://accounts.google.com")
   ): TokenVerifier[F] =
     new TokenVerifier[F] {
       private val base64Decoder = Base64.getDecoder

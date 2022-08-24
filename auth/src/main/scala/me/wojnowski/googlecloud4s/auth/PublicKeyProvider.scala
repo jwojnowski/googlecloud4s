@@ -1,6 +1,5 @@
 package me.wojnowski.googlecloud4s.auth
 
-import cats.Applicative
 import cats.effect.Ref
 import cats.effect.kernel.Sync
 import sttp.client3.SttpBackend
@@ -36,15 +35,6 @@ object PublicKeyProvider {
   private val certificateFactory = CertificateFactory.getInstance("X.509")
 
   private val rsaKeyFactory = KeyFactory.getInstance("RSA")
-
-  def static[F[_]: Applicative](keys: Map[KeyId, PublicKey]): PublicKeyProvider[F] =
-    new PublicKeyProvider[F] {
-      override def getKey(keyId: KeyId): F[Either[Error, PublicKey]] =
-        keys.get(keyId).toRight(Error.CouldNotFindPublicKey(keyId)).leftWiden[Error].pure[F]
-
-      override def getAllKeys: F[Either[Error, Map[KeyId, Either[Error, PublicKey]]]] =
-        keys.fmap(_.asRight[Error]).asRight[Error].pure[F]
-    }
 
   def cached[F[_]: Sync](delegate: PublicKeyProvider[F]): F[PublicKeyProvider[F]] =
     Ref[F].of(Map.empty[KeyId, PublicKey]).map { keyRef =>
