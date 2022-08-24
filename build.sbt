@@ -98,7 +98,7 @@ lazy val core = (project in file("core"))
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test,
         libraryDependencies += "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainersScalaMunit % Test,
         libraryDependencies += "org.testcontainers" % "gcloud" % Versions.testContainers % Test,
-        libraryDependencies += "org.typelevel" %% "cats-effect-testkit" % Versions.cats.effect % Test,
+        libraryDependencies += "org.typelevel" %% "cats-effect-testkit" % Versions.cats.effect % Test
       )
   )
 

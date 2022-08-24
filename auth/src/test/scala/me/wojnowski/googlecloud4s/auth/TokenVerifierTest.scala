@@ -1,5 +1,6 @@
 package me.wojnowski.googlecloud4s.auth
 
+import cats.Applicative
 import cats.effect.IO
 import cats.effect.testkit.TestControl
 import me.wojnowski.googlecloud4s.TimeUtils.InstantToFiniteDuration
@@ -10,49 +11,62 @@ import munit.CatsEffectSuite
 import pdi.jwt.exceptions.JwtEmptySignatureException
 import pdi.jwt.exceptions.JwtExpirationException
 import pdi.jwt.exceptions.JwtValidationException
-import sttp.client3.impl.cats.CatsMonadAsyncError
-import sttp.client3.testing.SttpBackendStub
 
+import java.security.spec.X509EncodedKeySpec
 import java.time.Instant
+import java.util.Base64
+import cats.syntax.all._
+import me.wojnowski.googlecloud4s.auth.PublicKeyProvider.Error
+import me.wojnowski.googlecloud4s.auth.PublicKeyProvider.KeyId
+import me.wojnowski.googlecloud4s.auth.TokenVerifierTest.staticKeyProvider
 
-// TODO use PublicKeyProvider.static
+import java.security.KeyFactory
+import java.security.PublicKey
+
 class TokenVerifierTest extends CatsEffectSuite {
 
-  private val trueGoogleCerts = """{
-                                |  "85828c59284a69b54b27483e487c3bd46cd2a2b3": "-----BEGIN CERTIFICATE-----\nMIIDJjCCAg6gAwIBAgIIGfd3XMYbtS8wDQYJKoZIhvcNAQEFBQAwNjE0MDIGA1UE\nAxMrZmVkZXJhdGVkLXNpZ25vbi5zeXN0ZW0uZ3NlcnZpY2VhY2NvdW50LmNvbTAe\nFw0yMTEwMjcxNTIxMzFaFw0yMTExMTMwMzM2MzFaMDYxNDAyBgNVBAMTK2ZlZGVy\nYXRlZC1zaWdub24uc3lzdGVtLmdzZXJ2aWNlYWNjb3VudC5jb20wggEiMA0GCSqG\nSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDMwfFa7HO0wpd0GG/esiaVS9b/Knqc7Tdx\nVc/IDRXKrT4zst84kkgX4502hEZ2wU8dUoIWijqoaFHysEKYzEDh8z5RuTmoq5So\nI314/fJkmrwLD21Su3+qHu5b6p8yvS6lzJ5IeEL/NbWVMazmyjAOiso3+NDVJ+H2\nF8HF9zxPt1AACASqoxwTe77YnvTWPKEnPSm+6sJ/OKIHdu5jpIZESEFDA3CmdCO3\n+UTZTiSbwVLTCg/O3RxwTfOwYvaoz4tZls6b1peq5Keo0ku3e0ZW9KGd6/4aInVd\n9DcRabR/jDRNf19M6TGy2XS+j+9b8WMZDQPWldKOpvuf6EB1fBz3AgMBAAGjODA2\nMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQMMAoGCCsG\nAQUFBwMCMA0GCSqGSIb3DQEBBQUAA4IBAQCrCMtikm2tKbcghtBvL+DtQ7aYh+a/\nikNwpSKuOjwjevlKJ1us3CXfU8ewbeeNPgEo7J47e/lbo0ax6lwpnWy08XSZlSTj\nb/Mq65bpDK5n+I13SFA4ZBJYtdVyAT8R7XPR6WnPVSo4ZYiJxv74NW3tGQqCG0aL\nIDq314xCJbhooLJ9Is/uEAIURish+1Aybd1P19w1DijSf+Cwr7hS+jRL9jAVs2UC\nJF0/KnUKrhtj7evDajrD/l8owythkYn6su8svmucUALpfRvQSd5kg2KQpChbizYV\nuQBTLBVNQMV4EZ5ppol3vdCUfm+h40ZsUFob2hK6X09sQWN77YLLh46s\n-----END CERTIFICATE-----\n",
-                                |  "bbd2ac7c4c5eb8adc8eeffbc8f5a2dd6cf7545e4": "-----BEGIN CERTIFICATE-----\nMIIDJjCCAg6gAwIBAgIIBXF9Zauw0z0wDQYJKoZIhvcNAQEFBQAwNjE0MDIGA1UE\nAxMrZmVkZXJhdGVkLXNpZ25vbi5zeXN0ZW0uZ3NlcnZpY2VhY2NvdW50LmNvbTAe\nFw0yMTEwMTkxNTIxMzFaFw0yMTExMDUwMzM2MzFaMDYxNDAyBgNVBAMTK2ZlZGVy\nYXRlZC1zaWdub24uc3lzdGVtLmdzZXJ2aWNlYWNjb3VudC5jb20wggEiMA0GCSqG\nSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDL3fR20ZN4wbnYg+wqYy4Sk8ctrG5hCV25\nl3oGoVWNzb5QVlHx82q2djMCNtdYkP9OrGB2WP8xbi+iC9fiwfBWlk4293J4agjI\nNC2KzqK4ZCFBqZXzkX8lusRScTDdAI7zsuLPlRcboErYdHI+EN8x7HX+07RE6bJI\nsV0JNLXsPTBqHvUhumLSAjwtSLqTNVGNgMgLWgT6Irdj2zzwGLhkZgnFcBuc3BvB\nWQY4oJeNr2TSOMEZHFkP7goO5/j3eUU44QZIsMDZCn2sOqtRE/XZdiC9//MnH+RI\nOKmevSAvpXPafcfj5c3i0DjnO7NGQegTv5d7E+r62/uRDylKNja5AgMBAAGjODA2\nMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQMMAoGCCsG\nAQUFBwMCMA0GCSqGSIb3DQEBBQUAA4IBAQBvEZ3/XHP40pOEFTMQYK5lQeSwNd6u\ni99+gFwww8Pa1wnbrWMbG4LNztxi1goWKJWVlMQBw94krT6c7dAhVnma8ILGhWUH\nJQFErr/mT6UrFBhr0FCNsb7+HEvfKB1VScePuy2XOBr5jFeCiOYVA97takXNxVIW\nGrWMlwc9C5kIm29153bozx+lGvvK5r29pk4+6ldvnxoV84GA8ioY1dLi3EI5v3cu\n4N95DqpQBkpYA3KZeGjGTSAS4a1D5mQiMkvznadCLANdrFyYanbAzQNhr7glFvZM\ny4jbo2xWW6z9zR0qm8zvPz4/Xy7JrfqfVdN1+3Oh69eBLv1+PmYMGj1o\n-----END CERTIFICATE-----\n"
-                                |}""".stripMargin
+  private val keyFactory = KeyFactory.getInstance("RSA")
 
-  private val fakeCerts =
-    """{
-      |   "11e03f39b8d300c8c9a1b800ddebfcfde4152c0c": "-----BEGIN CERTIFICATE-----\nMIICtjCCAZ4CCQCUE7KeXkP23zANBgkqhkiG9w0BAQUFADAdMRswGQYDVQQDDBJn\nb29nbGVjbG91ZDRzLXRlc3QwHhcNMjIwODE0MTcxODMxWhcNMjMwODE0MTcxODMx\nWjAdMRswGQYDVQQDDBJnb29nbGVjbG91ZDRzLXRlc3QwggEiMA0GCSqGSIb3DQEB\nAQUAA4IBDwAwggEKAoIBAQDt5Y6xd/5tOmr+OCm0AHEITxUurAltkLT8T6l3Ux+c\nonhUIGz7KT2RzSuuGMEGRp1xtLahHXYaK1A0WeNREKzkX24ivIM9sPvTE1jnaPnL\nzJW2REWW3BkIfGZskzs0t96ztMB3YUfesm/S33JJ1h6d+qa8gToGcP8Wmp4aAoEA\n5WRINxSlW1LAf+PuSgqUaeaTfn66yfjn/fVMsK8wgGMK6W4+scJhCWIP9+FxlHjN\n61yH+CkyWzIQiV5+/9GRVKp2HSAl1T6ngVyei8+bj8guWPcAxzGn7HLFq+vBdqSJ\nnOdzRGOa1DzeRYklNvspFLZ9zfhK9njCxwZgVw08PV8TAgMBAAEwDQYJKoZIhvcN\nAQEFBQADggEBAK8QIlPmZmoLtZ3H1Ie836n5omIwh3JYemXKPgc1yv0W3veXE0AF\nxVzsl1ymHFUd0Qw3WbHxxadGw+axHU7KEeAZX7+vxmSOHCRo+swMpKcc7iXWcs5d\n/a9QXxBgocA3RLwp/hfKugwetCX1AKQVRNZU7MzYQiEfncClqsKttGiSKIlzaeVi\nOGnOqpZuXRMsPV/sMj7jFjoFkCnb9RXSejv8AQosfabSYNATMsfWIyCoHKbUP41e\nQrWm8lhQBI1MQGBZoRXuiyqH7YaJSQSHi57z0mojCcRHrduawtYMB2sNIIaJUhIo\nCNTl06s1yM1Y3Q9yzEN7xyRa9BKJThNFXy8=\n-----END CERTIFICATE-----"
-      |}""".stripMargin
+  private val trueGoogleKeys: Map[KeyId, PublicKey] =
+    Map(
+      "85828c59284a69b54b27483e487c3bd46cd2a2b3" -> "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzMHxWuxztMKXdBhv3rImlUvW/yp6nO03cVXPyA0Vyq0+M7LfOJJIF+OdNoRGdsFPHVKCFoo6qGhR8rBCmMxA4fM+Ubk5qKuUqCN9eP3yZJq8Cw9tUrt/qh7uW+qfMr0upcyeSHhC/zW1lTGs5sowDorKN/jQ1Sfh9hfBxfc8T7dQAAgEqqMcE3u+2J701jyhJz0pvurCfziiB3buY6SGREhBQwNwpnQjt/lE2U4km8FS0woPzt0ccE3zsGL2qM+LWZbOm9aXquSnqNJLt3tGVvShnev+GiJ1XfQ3EWm0f4w0TX9fTOkxstl0vo/vW/FjGQ0D1pXSjqb7n+hAdXwc9wIDAQAB",
+      "bbd2ac7c4c5eb8adc8eeffbc8f5a2dd6cf7545e4" -> "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy930dtGTeMG52IPsKmMuEpPHLaxuYQlduZd6BqFVjc2+UFZR8fNqtnYzAjbXWJD/Tqxgdlj/MW4vogvX4sHwVpZONvdyeGoIyDQtis6iuGQhQamV85F/JbrEUnEw3QCO87Liz5UXG6BK2HRyPhDfMex1/tO0ROmySLFdCTS17D0wah71Ibpi0gI8LUi6kzVRjYDIC1oE+iK3Y9s88Bi4ZGYJxXAbnNwbwVkGOKCXja9k0jjBGRxZD+4KDuf493lFOOEGSLDA2Qp9rDqrURP12XYgvf/zJx/kSDipnr0gL6Vz2n3H4+XN4tA45zuzRkHoE7+XexPq+tv7kQ8pSjY2uQIDAQAB"
+    )
+      .fmap(encodedString => new X509EncodedKeySpec(Base64.getDecoder.decode(encodedString)))
+      .fmap(keyFactory.generatePublic)
+
+  private val fakeGoogleKeys: Map[KeyId, PublicKey] =
+    Map(
+      "11e03f39b8d300c8c9a1b800ddebfcfde4152c0c" -> "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7eWOsXf+bTpq/jgptABxCE8VLqwJbZC0/E+pd1MfnKJ4VCBs+yk9kc0rrhjBBkadcbS2oR12GitQNFnjURCs5F9uIryDPbD70xNY52j5y8yVtkRFltwZCHxmbJM7NLfes7TAd2FH3rJv0t9ySdYenfqmvIE6BnD/FpqeGgKBAOVkSDcUpVtSwH/j7koKlGnmk35+usn45/31TLCvMIBjCuluPrHCYQliD/fhcZR4zetch/gpMlsyEIlefv/RkVSqdh0gJdU+p4FcnovPm4/ILlj3AMcxp+xyxavrwXakiZznc0RjmtQ83kWJJTb7KRS2fc34SvZ4wscGYFcNPD1fEwIDAQAB"
+    )
+      .fmap(encodedString => new X509EncodedKeySpec(Base64.getDecoder.decode(encodedString)))
+      .fmap(keyFactory.generatePublic)
 
   val tokenA =
     "eyJhbGciOiJSUzI1NiIsImtpZCI6IjE3MjdiNmI0OTQwMmI5Y2Y5NWJlNGU4ZmQzOGFhN2U3YzExNjQ0YjEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJodHRwczovL2Nsb3VkdGFza3MuZ29vZ2xlYXBpcy5jb20vdjIvcHJvamVjdHMvZ2Nsb3VkLWRldmVsL2xvY2F0aW9ucyIsImF6cCI6InN0aW0tdGVzdEBzdGVsbGFyLWRheS0yNTQyMjIuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLCJlbWFpbCI6InN0aW0tdGVzdEBzdGVsbGFyLWRheS0yNTQyMjIuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZXhwIjoxNjYwODgwNjczLCJpYXQiOjE2NjA4NzcwNzMsImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbSIsInN1YiI6IjExMjgxMDY3Mjk2MzcyODM2NjQwNiJ9"
 
   val tokenExpiration = Instant.parse("2021-11-02T20:32:16Z")
 
-  private val backendWithTrueGoogleCerts =
-    SttpBackendStub.apply[IO, Any](new CatsMonadAsyncError).whenAnyRequest.thenRespond(trueGoogleCerts)
-
-  private implicit val backendWithFakeCerts: SttpBackendStub[IO, Any] =
-    SttpBackendStub.apply[IO, Any](new CatsMonadAsyncError).whenAnyRequest.thenRespond(fakeCerts)
-
   test("Correct IdentityToken signed with RS256") {
     runAtInstant(tokenExpiration.minusSeconds(3)) {
-      TokenVerifier.default[IO](implicitly, backendWithTrueGoogleCerts).verifyIdentityToken(tokenA).map { result =>
-        assertEquals(result, Right(Set(TargetAudience("http://example.com"))))
-      }
+      TokenVerifier
+        .create[IO](staticKeyProvider(trueGoogleKeys))
+        .verifyIdentityToken(tokenA)
+        .map { result =>
+          assertEquals(result, Right(Set(TargetAudience("http://example.com"))))
+        }
     }
   }
 
   test("Expired IdentityToken") {
     runAtInstant(tokenExpiration.plusSeconds(3)) {
-      TokenVerifier.default[IO](implicitly, backendWithTrueGoogleCerts).verifyIdentityToken(tokenA).map {
-        case Left(JwtVerificationError(_: JwtExpirationException)) => ()
-        case _                                                     => fail("expected JwtExpirationException")
-      }
+      TokenVerifier
+        .create[IO](staticKeyProvider(trueGoogleKeys))
+        .verifyIdentityToken(tokenA)
+        .map {
+          case Left(JwtVerificationError(_: JwtExpirationException)) => ()
+          case _                                                     => fail("expected JwtExpirationException")
+        }
     }
   }
 
@@ -62,7 +76,7 @@ class TokenVerifierTest extends CatsEffectSuite {
 
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .default[IO]
+        .create[IO](staticKeyProvider(fakeGoogleKeys))
         .verifyIdentityToken(tokenWithOtherIssuer)
         .map {
           case Left(TokenVerifier.Error.UnexpectedIssuer(Some("https://thisisnotgoogle.com"), issuers)) =>
@@ -79,7 +93,7 @@ class TokenVerifierTest extends CatsEffectSuite {
 
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .default[IO](implicitly, backendWithTrueGoogleCerts)
+        .create[IO](staticKeyProvider(trueGoogleKeys))
         .verifyIdentityToken(tokenSignedWithOtherKey)
         .map {
           case Left(JwtVerificationError(_: JwtValidationException)) => ()
@@ -94,7 +108,7 @@ class TokenVerifierTest extends CatsEffectSuite {
 
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .create[IO](Set("https://thisisnotgoogle.com"), publicKeyProvider = PublicKeyProvider.googleV1[IO]())
+        .create[IO](staticKeyProvider(fakeGoogleKeys), expectedIssuers = Set("https://thisisnotgoogle.com"))
         .verifyIdentityToken(tokenWithOtherIssuer)
         .map { result =>
           assertEquals(result, Right(Set(TargetAudience("http://example.com"))))
@@ -109,7 +123,7 @@ class TokenVerifierTest extends CatsEffectSuite {
 
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .default[IO]
+        .create[IO](staticKeyProvider(fakeGoogleKeys))
         .verifyIdentityToken(tokenWithoutIssuer)
         .map {
           case Left(TokenVerifier.Error.UnexpectedIssuer(None, issuers)) => assertEquals(issuers, Set("https://accounts.google.com"))
@@ -124,7 +138,7 @@ class TokenVerifierTest extends CatsEffectSuite {
 
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .default[IO]
+        .create[IO](staticKeyProvider(fakeGoogleKeys))
         .verifyIdentityToken(tokenWithAlgorithmNone)
         .map {
           case Left(JwtVerificationError(_: JwtEmptySignatureException)) => ()
@@ -139,7 +153,7 @@ class TokenVerifierTest extends CatsEffectSuite {
 
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .default[IO]
+        .create[IO](staticKeyProvider(fakeGoogleKeys))
         .verifyIdentityToken(tokenWithAlgorithmNone)
         .map {
           case Left(JwtVerificationError(_: JwtValidationException)) => ()
@@ -154,7 +168,7 @@ class TokenVerifierTest extends CatsEffectSuite {
 
     runAtInstant(tokenExpiration.minusSeconds(3)) {
       TokenVerifier
-        .default[IO]
+        .create[IO](staticKeyProvider(fakeGoogleKeys))
         .verifyIdentityToken(tokenWithHs256Algorithm)
         .map {
           case Left(JwtVerificationError(_: JwtValidationException)) => ()
@@ -165,5 +179,18 @@ class TokenVerifierTest extends CatsEffectSuite {
 
   def runAtInstant[A](@unused instant: Instant)(program: IO[A]): IO[A] =
     TestControl.executeEmbed(IO.sleep(instant.toFiniteDuration) *> program)
+
+}
+
+object TokenVerifierTest {
+
+  def staticKeyProvider[F[_]: Applicative](keys: Map[KeyId, PublicKey]): PublicKeyProvider[F] =
+    new PublicKeyProvider[F] {
+      override def getKey(keyId: KeyId): F[Either[Error, PublicKey]] =
+        keys.get(keyId).toRight(Error.CouldNotFindPublicKey(keyId)).leftWiden[Error].pure[F]
+
+      override def getAllKeys: F[Either[Error, Map[KeyId, Either[Error, PublicKey]]]] =
+        keys.fmap(_.asRight[Error]).asRight[Error].pure[F]
+    }
 
 }
