@@ -1,4 +1,7 @@
 # googlecloud4s
+[![License](http://img.shields.io/:license-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Maven Central](https://img.shields.io/maven-central/v/me.wojnowski/googlecloud4s-core_3.svg)](https://search.maven.org/search?q=googlecloud4s)
+
 Purely functional Scala library for interaction with Google Cloud Platform.
 
 ## Disclaimer
