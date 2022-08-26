@@ -32,7 +32,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          sbt "release release-version ${{ inputs.release-version }} next-version ${{ inputs.next-version }}"
+          sbt "release with-defaults release-version ${{ inputs.release-version }} next-version ${{ inputs.next-version }}"
         env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
