@@ -95,6 +95,7 @@ lazy val core = (project in file("core"))
         libraryDependencies += "com.softwaremill.sttp.client3" %% "circe" % Versions.sttp,
         libraryDependencies += "io.circe" %% "circe-core" % Versions.circe,
         libraryDependencies += "io.circe" %% "circe-refined" % Versions.circe,
+        libraryDependencies += "org.typelevel" %% "jawn-parser" % "1.4.0", // CVE-2022-21653
         libraryDependencies += "org.scalameta" %% "munit" % Versions.mUnit % Test,
         libraryDependencies += "com.dimafeng" %% "testcontainers-scala-munit" % Versions.testContainersScalaMunit % Test,
         libraryDependencies += "org.testcontainers" % "gcloud" % Versions.testContainers % Test,
