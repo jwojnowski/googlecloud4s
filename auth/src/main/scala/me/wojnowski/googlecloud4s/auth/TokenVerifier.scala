@@ -53,7 +53,7 @@ object TokenVerifier {
         verifyAndParseToken(rawToken)
           .flatMap {
             case Result(_, claim, _) =>
-              Sync[F].fromEither(io.circe.parser.decode[A](claim.content).leftMap(TokenVerifier.Error.CouldNotDecodeClaim.apply))
+              Sync[F].fromEither(io.circe.parser.decode[A](claim.toJson).leftMap(TokenVerifier.Error.CouldNotDecodeClaim.apply))
           }
           .attemptNarrow[TokenVerifier.Error]
 
