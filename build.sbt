@@ -4,8 +4,8 @@ idePackagePrefix := Some("me.wojnowski.googlecloud4s")
 
 scalacOptions += "-Ypartial-unification"
 
-val Scala213 = "2.13.8"
-val Scala3 = "3.1.3"
+val Scala213 = "2.13.10"
+val Scala3 = "3.2.2"
 
 ThisBuild / scalaVersion := Scala213
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala3)
@@ -180,7 +180,7 @@ ThisBuild / libraryDependencies ++= {
   }
 }
 
-addCompilerPlugin("org.polyvariant" % "better-tostring" % "0.3.16" cross CrossVersion.full)
+addCompilerPlugin("org.polyvariant" % "better-tostring" % "0.3.17" cross CrossVersion.full)
 
 val root = project
   .in(file("."))
