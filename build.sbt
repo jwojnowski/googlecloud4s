@@ -67,6 +67,7 @@ lazy val Versions = new {
   val cats = new {
     val core = "2.8.0"
     val effect = "3.3.14"
+    val parse = "0.3.9"
   }
 
   val log4cats = "2.4.0"
@@ -142,6 +143,8 @@ lazy val firestore = (project in file("firestore"))
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
         "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
         "org.slf4j" % "slf4j-simple" % "1.7.32" % Test
+      ) ++ List(
+        "org.typelevel" %% "cats-parse" % Versions.cats.parse
       )
     )
   )
