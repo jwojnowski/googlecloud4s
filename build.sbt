@@ -24,6 +24,7 @@ ThisBuild / versionScheme := Some("semver-spec")
 
 import xerial.sbt.Sonatype._
 ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
+ThisBuild / sonatypeRepository := "https://s01.oss.sonatype.org/service/local"
 ThisBuild / sonatypeProjectHosting := Some(GitHubHosting("jwojnowski", "googlecloud4s", "29680262+jwojnowski@users.noreply.github.com"))
 
 ThisBuild / homepage := Some(url("https://github.com/jwojnowski/googlecloud4s"))
@@ -34,27 +35,7 @@ val commonSettings = Seq(
   publishConfiguration := publishConfiguration.value.withOverwrite(true),
   publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true),
   publishM2Configuration := publishM2Configuration.value.withOverwrite(true),
-  publishTo := sonatypePublishToBundle.value,
-  releaseCrossBuild := true,
-  releaseTagName := s"${version.value}",
-  releasePublishArtifactsAction := PgpKeys.publishSigned.value
-)
-
-import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
-
-releaseProcess := Seq[ReleaseStep](
-  checkSnapshotDependencies,
-  inquireVersions,
-  runClean,
-  runTest,
-  setReleaseVersion,
-  commitReleaseVersion,
-  tagRelease,
-  publishArtifacts,
-  releaseStepCommand("sonatypeBundleRelease"),
-  setNextVersion,
-  commitNextVersion,
-  pushChanges
+  publishTo := sonatypePublishToBundle.value
 )
 
 lazy val Versions = new {
