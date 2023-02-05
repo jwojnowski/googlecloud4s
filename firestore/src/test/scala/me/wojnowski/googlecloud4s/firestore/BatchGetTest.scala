@@ -8,8 +8,8 @@ import munit.CatsEffectSuite
 import cats.syntax.all._
 import me.wojnowski.googlecloud4s.ProjectId
 import me.wojnowski.googlecloud4s.auth.TokenProvider
-import me.wojnowski.googlecloud4s.firestore.Firestore.Collection
-import me.wojnowski.googlecloud4s.firestore.Firestore.Name
+import me.wojnowski.googlecloud4s.firestore.Helpers.CollectionIdString
+import me.wojnowski.googlecloud4s.firestore.Helpers.ShortNameString
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.DurationInt
@@ -23,15 +23,16 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
 
   val projectId: ProjectId = ProjectId("project-id")
 
-  val collection = Collection("collection-a")
+  val collectionA = "collection-a".toCollectionId
+  val collectionB = "collection-b".toCollectionId
 
   import FirestoreCodec.circe._
 
-  val documentAName = Name.Short("document-a")
-  val documentCName = Name.Short("document-c")
-  val nonExistentDocumentName = Name.Short("idontexist")
+  val documentAName = "document-a".toDocumentId
+  val documentCName = "document-c".toDocumentId
+  val nonExistentDocumentName = "idontexist".toDocumentId
 
-  test("batchGet supports both short and full names") {
+  test("batchGet supports document IDs") {
     withContainerUri { uri =>
       withSttpBackend { backend =>
         val attempts = 3
@@ -39,24 +40,24 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
         val firestore = Firestore.instance[IO](backend, projectId, uri.some, optimisticLockingAttempts = attempts)
 
         for {
-          _             <- firestore.put(collection, documentAName, TestDocumentWithCounter(counter = 0))
-          documentBName <- firestore.add(collection, TestDocumentWithCounter(counter = 0))
-          results       <- firestore.batchGet[TestDocumentWithCounter](
-                             collection,
-                             NonEmptyList.of(documentAName, documentBName)
-                           )
+          _                  <- firestore.put(collectionA, documentAName, TestDocumentWithCounter(counter = 0))
+          documentBReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
+          results            <- firestore.batchGet[TestDocumentWithCounter](
+                                  collectionA,
+                                  NonEmptyList.of(documentAName, documentBReference.documentId)
+                                )
         } yield assertEquals(
           results.toSortedMap.view.mapValues(_.nonEmpty).toMap,
           Map(
-            documentAName.toFull(projectId, collection) -> true,
-            documentBName -> true
+            Reference.Root(projectId).resolve(collectionA, documentAName) -> true,
+            documentBReference -> true
           )
         )
       }
     }
   }
 
-  test("batchGet returns full names even for non-existent documents") {
+  test("batchGet supports full document references with different collections") {
     withContainerUri { uri =>
       withSttpBackend { backend =>
         val attempts = 3
@@ -64,16 +65,64 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
         val firestore = Firestore.instance[IO](backend, projectId, uri.some, optimisticLockingAttempts = attempts)
 
         for {
-          _       <- firestore.put(collection, documentAName, TestDocumentWithCounter(counter = 0))
+          documentAReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
+          documentBReference <- firestore.add(collectionB, TestDocumentWithCounter(counter = 0))
+          results            <- firestore.batchGet[TestDocumentWithCounter](
+                                  NonEmptyList.of(documentAReference, documentBReference)
+                                )
+        } yield assertEquals(
+          results.toSortedMap.view.mapValues(_.nonEmpty).toMap,
+          Map(
+            documentAReference -> true,
+            documentBReference -> true
+          )
+        )
+      }
+    }
+  }
+
+  test("batchGet fails when references don't match project root") {
+    withContainerUri { uri =>
+      withSttpBackend { backend =>
+        val attempts = 3
+
+        val firestore = Firestore.instance[IO](backend, projectId, uri.some, optimisticLockingAttempts = attempts)
+
+        val referenceFromDifferentProject = Reference.Root(ProjectId("other-project-id")).resolve(collectionB, "document-b".toDocumentId)
+
+        for {
+          documentAReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
+          result             <- firestore
+                                  .batchGet[TestDocumentWithCounter](
+                                    NonEmptyList.of(documentAReference, referenceFromDifferentProject)
+                                  )
+                                  .attempt
+        } yield assertEquals(
+          result,
+          Left(Firestore.Error.ReferencesDontMatchRoot(NonEmptyList.of(referenceFromDifferentProject), firestore.rootReference))
+        )
+      }
+    }
+  }
+
+  test("batchGet returns full references even for non-existent documents") {
+    withContainerUri { uri =>
+      withSttpBackend { backend =>
+        val attempts = 3
+
+        val firestore = Firestore.instance[IO](backend, projectId, uri.some, optimisticLockingAttempts = attempts)
+
+        for {
+          _       <- firestore.put(collectionA, documentAName, TestDocumentWithCounter(counter = 0))
           results <- firestore.batchGet[TestDocumentWithCounter](
-                       collection,
+                       collectionA,
                        NonEmptyList.of(documentAName, nonExistentDocumentName)
                      )
         } yield assertEquals(
           results.toSortedMap.view.mapValues(_.nonEmpty).toMap,
           Map(
-            documentAName.toFull(projectId, collection) -> true,
-            nonExistentDocumentName.toFull(projectId, collection) -> false
+            Reference.Root(projectId).resolve(collectionA, documentAName) -> true,
+            Reference.Root(projectId).resolve(collectionA, nonExistentDocumentName) -> false
           )
         )
       }

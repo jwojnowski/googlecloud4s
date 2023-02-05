@@ -4,8 +4,8 @@ idePackagePrefix := Some("me.wojnowski.googlecloud4s")
 
 scalacOptions += "-Ypartial-unification"
 
-val Scala213 = "2.13.8"
-val Scala3 = "3.1.3"
+val Scala213 = "2.13.10"
+val Scala3 = "3.2.2"
 
 ThisBuild / scalaVersion := Scala213
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala3)
@@ -67,6 +67,7 @@ lazy val Versions = new {
   val cats = new {
     val core = "2.8.0"
     val effect = "3.3.14"
+    val parse = "0.3.9"
   }
 
   val log4cats = "2.4.0"
@@ -142,6 +143,8 @@ lazy val firestore = (project in file("firestore"))
         "org.scalameta" %% "munit" % Versions.mUnit % Test,
         "org.typelevel" %% "munit-cats-effect-3" % Versions.mUnitCatsEffect % Test,
         "org.slf4j" % "slf4j-simple" % "1.7.32" % Test
+      ) ++ List(
+        "org.typelevel" %% "cats-parse" % Versions.cats.parse
       )
     )
   )
@@ -177,7 +180,7 @@ ThisBuild / libraryDependencies ++= {
   }
 }
 
-addCompilerPlugin("org.polyvariant" % "better-tostring" % "0.3.16" cross CrossVersion.full)
+addCompilerPlugin("org.polyvariant" % "better-tostring" % "0.3.17" cross CrossVersion.full)
 
 val root = project
   .in(file("."))

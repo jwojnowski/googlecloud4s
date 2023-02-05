@@ -10,7 +10,7 @@ import munit.CatsEffectSuite
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.DurationInt
 import cats.syntax.all._
-import me.wojnowski.googlecloud4s.firestore.Firestore.Collection
+import me.wojnowski.googlecloud4s.firestore.Helpers.CollectionIdString
 import sttp.client3.testing.RecordingSttpBackend
 
 /* Firestore emulator always fails with:
@@ -26,7 +26,7 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
 
   val projectId: ProjectId = ProjectId("project-id")
 
-  val collection = Collection("collection-a")
+  val collection = "collection-a".toCollectionId
 
   import FirestoreCodec.circe._
 
@@ -40,8 +40,10 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
         val firestore = Firestore.instance[IO](recordingBackend, projectId, uri.some, optimisticLockingAttempts = attempts)
 
         for {
-          name   <- firestore.add(collection, TestDocumentWithCounter(counter = 0))
-          result <- firestore.update[TestDocumentWithCounter](collection, name, document => document.copy(document.counter + 1)).attempt
+          path   <- firestore.add(collection, TestDocumentWithCounter(counter = 0))
+          result <- firestore
+                      .update[TestDocumentWithCounter](path, (document: TestDocumentWithCounter) => document.copy(document.counter + 1))
+                      .attempt
           patchRequestsCount = recordingBackend.allInteractions.count {
                                  case (request, _) => request.method == sttp.model.Method.PATCH
                                }

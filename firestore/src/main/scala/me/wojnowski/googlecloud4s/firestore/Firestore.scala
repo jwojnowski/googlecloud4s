@@ -1,7 +1,6 @@
 package me.wojnowski.googlecloud4s.firestore
 
 import cats.Functor
-import cats.Show
 import cats.data.Chain
 import cats.data.NonEmptyList
 import cats.data.NonEmptyMap
@@ -35,92 +34,70 @@ import me.wojnowski.googlecloud4s.firestore.Firestore.FieldFilter.Operator
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
 import sttp.model.StatusCode
+import sttp.model.Uri
+import sttp.model.Uri.Segment
 
 import scala.collection.immutable.SortedMap
+import scala.util.control.NonFatal
 
 trait Firestore[F[_]] {
-  def add[V: FirestoreCodec](collection: Collection, value: V): F[Name.FullyQualified]
+  def add[V: FirestoreCodec](collectionId: CollectionId, value: V, parent: Reference = rootReference): F[Reference.Document]
 
-  def put[V: FirestoreCodec](collection: Collection, name: Name, value: V): F[Unit]
+  def put[V: FirestoreCodec](collectionId: CollectionId, documentId: DocumentId, value: V, parent: Reference = rootReference): F[Unit]
 
-  def get[V: FirestoreCodec](collection: Collection, name: Name): F[Option[V]]
+  def put[V: FirestoreCodec](reference: Reference.Document, value: V): F[Unit]
+
+  def get[V: FirestoreCodec](collectionId: CollectionId, documentId: DocumentId, parent: Reference = rootReference): F[Option[V]]
+  def get[V: FirestoreCodec](reference: Reference.Document): F[Option[V]]
 
   /** @return old version, the last before successfully applying f */
-  def update[V: FirestoreCodec](collection: Collection, name: Name, f: V => V): F[Option[V]]
+  def update[V: FirestoreCodec](
+    collectionId: CollectionId,
+    documentId: DocumentId,
+    f: V => V,
+    parent: Reference = rootReference
+  ): F[Option[V]]
 
-  def batchGet[V: FirestoreCodec](collection: Collection, keys: NonEmptyList[Name]): F[NonEmptyMap[Name.FullyQualified, Option[V]]]
+  /** @return old version, the last before successfully applying f */
+  def update[V: FirestoreCodec](reference: Reference.Document, f: V => V): F[Option[V]]
+
+  def batchGet[V: FirestoreCodec](
+    collectionId: CollectionId,
+    documentIds: NonEmptyList[DocumentId],
+    parent: Reference = rootReference
+  ): F[NonEmptyMap[Reference.Document, Option[V]]] =
+    batchGet(documentIds.map(id => parent.resolve(collectionId, id)))
+
+  def batchGet[V: FirestoreCodec](paths: NonEmptyList[Reference.Document]): F[NonEmptyMap[Reference.Document, Option[V]]]
 
   // TODO create some Query class
   def stream[V: FirestoreCodec](
-    collection: Collection,
+    collectionId: CollectionId,
     filters: List[FieldFilter] = List.empty,
     orderBy: List[Order] = List.empty,
-    pageSize: Int = 50
-  ): Stream[F, (Name.FullyQualified, Either[Error.DecodingFailure, V])]
+    pageSize: Int = 50,
+    parent: Reference = rootReference
+  ): Stream[F, (Reference.Document, Either[Error.DecodingFailure, V])]
 
   def streamLogFailures[V: FirestoreCodec](
-    collection: Collection,
+    collectionId: CollectionId,
     filters: List[FieldFilter] = List.empty,
     orderBy: List[Order] = List.empty,
-    pageSize: Int = 50
-  ): Stream[F, (Name.FullyQualified, V)]
+    pageSize: Int = 50,
+    parent: Reference = rootReference
+  ): Stream[F, (Reference.Document, V)]
 
-  def delete[V](collection: Collection, name: Name): F[Unit]
+  def delete(collectionId: CollectionId, documentId: DocumentId, parent: Reference = rootReference): F[Unit]
+
+  def delete(reference: Reference.Document): F[Unit]
+
+  def rootReference: Reference.Root
 }
 
 object Firestore {
+  private[firestore] val defaultDatabase = "(default)"
+
   def apply[F[_]](implicit ev: Firestore[F]): Firestore[F] = ev
-
-  sealed trait Name extends Product with Serializable {
-    def short: String
-
-    def toShort: Name.Short
-
-    def toFull(projectId: ProjectId, collection: Collection): Name.FullyQualified
-  }
-
-  object Name {
-
-    case class Short(private val value: String) extends Name {
-      def short: String = value
-
-      override def toShort: Short = this
-
-      override def toFull(projectId: ProjectId, collection: Collection): Name.FullyQualified =
-        FullyQualified(s"projects/${projectId.value}/databases/(default)/documents/${collection.value}/$short")
-    }
-
-    // TODO (ProjectId, Collection, Short) and a cats-parse parser
-    case class FullyQualified(private val value: String) extends Name {
-      def short: String = value.split('/').last
-
-      def full: String = value
-
-      override def toShort: Short = Short(short)
-
-      override def toFull(projectId: ProjectId, collection: Collection): FullyQualified = this
-    }
-
-    def short(value: String): Name = Short(value)
-
-    def fullyQualified(value: String): Name = FullyQualified(value)
-
-    implicit val fullyQualifiedNameDecoder: Decoder[FullyQualified] = Decoder[String].map(FullyQualified.apply)
-    implicit val ordering: Ordering[FullyQualified] = Ordering.by(_.full)
-
-    implicit val show: Show[Name] = Show.fromToString
-  }
-
-  case class Collection(value: String) extends AnyVal {
-    override def toString: String = value
-  }
-
-  object Collection {
-
-    implicit val encoder: Encoder[Collection] = Encoder[String].contramap(_.value)
-    implicit val decoder: Decoder[Collection] = Decoder[String].map(Collection.apply)
-
-  }
 
   sealed trait Error extends ProductSerializableNoStacktrace
 
@@ -133,16 +110,18 @@ object Firestore {
     case class UnexpectedError(override val getMessage: String) extends Error
     case class DecodingFailure(cause: Throwable) extends Exception(cause) with Error
     case class EncodingFailure(override val getMessage: String) extends Error
+    case class ReferencesDontMatchRoot(notMatchingReferences: NonEmptyList[Reference.Document], root: Reference.Root)
+      extends IllegalArgumentException(s"References [$notMatchingReferences] don't match project root [$root]")
   }
 
-  case class FirestoreDocument(name: Name.FullyQualified, fields: Fields, updateTime: Instant) {
+  case class FirestoreDocument(reference: Reference.Document, fields: Fields, updateTime: Instant) {
     def as[V: FirestoreCodec]: Either[FirestoreCodec.Error, V] = fields.toFirestoreData.as[V]
   }
 
   object FirestoreDocument {
 
     implicit val decoder: Decoder[FirestoreDocument] =
-      Decoder.forProduct3[FirestoreDocument, Name.FullyQualified, Fields, Instant]("name", "fields", "updateTime")(FirestoreDocument.apply)
+      Decoder.forProduct3[FirestoreDocument, Reference.Document, Fields, Instant]("name", "fields", "updateTime")(FirestoreDocument.apply)
 
     case class Fields(value: Map[String, FirestoreData]) {
       def toFirestoreData: FirestoreData =
@@ -235,74 +214,87 @@ object Firestore {
       val baseUri = uriOverride.fold(uri"https://firestore.googleapis.com")(u => uri"$u")
       val scope = Scopes("https://www.googleapis.com/auth/datastore")
 
-      private def getToken: F[Either[Error.AuthError, AccessToken]] =
-        TokenProvider[F].getAccessToken(scope).mapError2 {
+      override def rootReference: Reference.Root = Reference.Root(projectId)
+
+      private def getToken: F[AccessToken] =
+        TokenProvider[F].getAccessToken(scope).adaptError {
           case e: TokenProvider.Error => Error.AuthError(e)
         }
 
       private def encodeFields[V: FirestoreCodec](value: V): F[Either[Error.EncodingFailure, FirestoreDocument.Fields]] =
         FirestoreDocument.Fields.fromFirestoreData(value.asFirestoreData).leftMap(Error.EncodingFailure.apply).pure[F]
 
-      override def add[V: FirestoreCodec](collection: Collection, value: V): F[Name.FullyQualified] = {
+      override def add[V: FirestoreCodec](
+        collectionId: CollectionId,
+        value: V,
+        parent: Reference = rootReference
+      ): F[Reference.Document] = {
         for {
-          _      <- Logger[F].debug(s"Adding to collection [$collection]...")
-          token  <- getToken.rethrow
-          fields <- encodeFields(value).rethrow
-          name   <- sttpBackend
-                      .send {
-                        basicRequest
-                          .header("Authorization", s"Bearer ${token.value}")
-                          .post(uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents/$collection")
-                          .body(JsonObject("fields" -> fields.asJson))
-                          .response(asJson[Json])
-                      }
-                      .mapError(Error.CommunicationError.apply)
-                      .flatMap {
-                        _.body match {
-                          case Right(json)              =>
-                            Sync[F].fromEither(extractName(json))
-                          case Left(unexpectedResponse) =>
-                            Error.UnexpectedResponse(unexpectedResponse.getMessage).raiseError[F, Name.FullyQualified]
-                        }
-                      }
-        } yield name
+          _         <- Logger[F].debug(s"Adding to collection [${collectionId.value}]...")
+          token     <- getToken
+          fields    <- encodeFields(value).rethrow
+          reference <- sttpBackend
+                         .send {
+                           basicRequest
+                             .header("Authorization", s"Bearer ${token.value}")
+                             .post(createUri(parent).addPath(collectionId.value))
+                             .body(JsonObject("fields" -> fields.asJson))
+                             .response(asJson[Json])
+                         }
+                         .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
+                         .flatMap {
+                           _.body match {
+                             case Right(json)              =>
+                               Sync[F].fromEither(extractReference(json))
+                             case Left(unexpectedResponse) =>
+                               Error.UnexpectedResponse(unexpectedResponse.getMessage).raiseError[F, Reference.Document]
+                           }
+                         }
+        } yield reference
       }.onError {
         case throwable =>
           Logger[F].error(throwable)(
-            s"Failed to add new item to collection [$collection] due to $throwable"
+            s"Failed to add new item to collection [$collectionId] due to $throwable"
           )
       }
 
-      override def put[V: FirestoreCodec](collection: Collection, name: Name, value: V): F[Unit] =
-        putWithOptimisticLocking(collection, name, value, maybeUpdateTime = None)
+      override def put[V: FirestoreCodec](
+        collectionId: CollectionId,
+        documentId: DocumentId,
+        value: V,
+        parent: Reference = rootReference
+      ): F[Unit] =
+        put(parent.resolve(collectionId, documentId), value)
+
+      override def put[V: FirestoreCodec](reference: Reference.Document, value: V): F[Unit] =
+        putWithOptimisticLocking(reference, value, maybeUpdateTime = None)
 
       private def putWithOptimisticLocking[V: FirestoreCodec](
-        collection: Collection,
-        name: Name,
+        reference: Reference.Document,
         value: V,
         maybeUpdateTime: Option[Instant]
       ): F[Unit] = {
         for {
-          _             <- Logger[F].debug(s"Putting [$name] into [$collection]...")
-          token         <- getToken.rethrow
+          _             <- Logger[F].debug(show"Putting [$reference]...")
+          token         <- getToken
           encodedFields <- encodeFields(value).rethrow
           _             <- sttpBackend
                              .send {
                                basicRequest
                                  .header("Authorization", s"Bearer ${token.value}")
                                  .patch(
-                                   uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents/$collection/${name.short}".addParams(
+                                   createUri(reference).addParams(
                                      Map() ++ maybeUpdateTime.map(updateTime => "currentDocument.updateTime" -> updateTime.toString)
                                    )
                                  )
                                  .body(JsonObject("fields" -> encodedFields.asJson))
                                  .response(asJsonEither[FirestoreErrorResponse, Json])
                              }
-                             .mapError(Error.CommunicationError.apply)
+                             .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
                              .flatMap {
                                _.body match {
                                  case Right(_)                                                                              =>
-                                   Logger[F].info(s"Put [$name] into [$collection].") *>
+                                   Logger[F].info(s"Put [$reference].") *>
                                      ().pure[F]
                                  case Left(HttpError(FirestoreErrorResponse("FAILED_PRECONDITION"), StatusCode.BadRequest)) =>
                                    Error.OptimisticLockingFailure.raiseError[F, Unit]
@@ -314,29 +306,27 @@ object Firestore {
       }.onError {
         case throwable =>
           Logger[F].error(throwable)(
-            s"Failed to put item [$name] into collection [$collection] due to $throwable"
+            show"Failed to put item [$reference] due to ${throwable.toString}"
           )
       }
 
       override def batchGet[V: FirestoreCodec](
-        collection: Collection,
-        names: NonEmptyList[Name]
-      ): F[NonEmptyMap[Name.FullyQualified, Option[V]]] =
+        paths: NonEmptyList[Reference.Document]
+      ): F[NonEmptyMap[Reference.Document, Option[V]]] =
         for {
-          _           <- Logger[F].debug(s"Getting in a batch documents [$names] from collection [$collection]...")
-          token       <- getToken.rethrow
+          _           <- Sync[F].fromEither(validateReferencesAgainstProjectRoot(paths))
+          _           <- Logger[F].debug(s"Getting in a batch documents [$paths]...")
+          token       <- getToken
           results     <- sttpBackend
                            .send(
                              basicRequest
                                .header("Authorization", s"Bearer ${token.value}")
-                               .post(
-                                 uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents:batchGet"
-                               )
+                               .post(createUri(rootReference, ":batchGet"))
                                .body(
                                  JsonObject(
                                    "documents" ->
-                                     names
-                                       .map(name => name.toFull(projectId, collection).full)
+                                     paths
+                                       .map(_.full)
                                        .asJson
                                  ).asJson
                                )
@@ -346,91 +336,118 @@ object Firestore {
                              type EitherExceptionOr[A] = Either[Exception, A]
 
                              Sync[F]
-                               .fromEither((response.body: List[HCursor]).traverse[EitherExceptionOr, (Name.FullyQualified, Option[V])] {
+                               .fromEither((response.body: List[HCursor]).traverse[EitherExceptionOr, (Reference.Document, Option[V])] {
                                  hCursor => // TODO this is weird
                                    hCursor
                                      .downField("found")
                                      .as[FirestoreDocument]
                                      .flatMap { document =>
-                                       document.as[V].map(document.name -> _.some)
+                                       document.as[V].map(document.reference -> _.some)
                                      }
-                                     .orElse(hCursor.downField("missing").as[String].map(Name.FullyQualified.apply).map(_ -> none[V]))
+                                     .orElse(
+                                       hCursor
+                                         .downField("missing")
+                                         .as[String]
+                                         .flatMap(Reference.Document.parse(_).leftMap(new IllegalArgumentException(_)))
+                                         .map(_ -> none[V])
+                                     )
                                })
                            }
           nonEmptyMap <- Sync[F].fromOption(NonEmptyMap.fromMap(SortedMap(results: _*)), Error.UnexpectedError("Empty response"))
         } yield nonEmptyMap
 
-      override def get[V: FirestoreCodec](collection: Collection, name: Name): F[Option[V]] =
-        Logger[F].debug(s"Getting [$collection/${name.short}]...") *>
-          getDocument(collection, name)
+      private def validateReferencesAgainstProjectRoot(
+        references: NonEmptyList[Reference.Document]
+      ): Either[Error.ReferencesDontMatchRoot, Unit] = {
+        val notMatchingReferences = references.filter(_.contains(rootReference))
+        notMatchingReferences.toNel.toRight(()).swap.leftMap(Error.ReferencesDontMatchRoot(_, rootReference))
+      }
+
+      override def get[V: FirestoreCodec](
+        collectionId: CollectionId,
+        documentId: DocumentId,
+        parent: Reference = rootReference
+      ): F[Option[V]] =
+        get(parent.resolve(collectionId, documentId))
+
+      override def get[V: FirestoreCodec](reference: Reference.Document): F[Option[V]] =
+        Logger[F].debug(show"Getting [$reference]...") *>
+          getDocument(reference)
             .flatMap {
               _.traverse { document =>
                 Sync[F].fromEither(document.as[V].leftMap(Error.DecodingFailure.apply))
               }
             }
             .flatTap { value =>
-              Logger[F].trace(s"Got item [$collection/${name.short}]: [$value]") *>
-                Logger[F].debug(s"Got item [$collection/${name.short}].")
+              Logger[F].trace(s"Got item [$reference]: [$value]") *>
+                Logger[F].debug(show"Got item [$reference].")
             }
             .onError {
               case throwable =>
                 Logger[F].error(throwable)(
-                  s"Failed to get item [$collection/${name.short}] due to $throwable"
+                  show"Failed to get item [$reference] due to ${throwable.toString}"
                 )
             }
 
-      override def update[V: FirestoreCodec](collection: Collection, name: Name, f: V => V): F[Option[V]] = {
+      override def update[V: FirestoreCodec](
+        collectionId: CollectionId,
+        documentId: DocumentId,
+        f: V => V,
+        parent: Reference = rootReference
+      ): F[Option[V]] = update(parent.resolve(collectionId, documentId), f)
+
+      override def update[V: FirestoreCodec](reference: Reference.Document, f: V => V): F[Option[V]] = {
         def attemptUpdate(attemptsLeft: Int): F[Option[V]] =
-          getDocument(collection, name)
+          getDocument(reference)
             .flatMap {
               _.traverse { document =>
                 for {
                   decodedDocument <- Sync[F].fromEither(document.as[V].leftMap(Error.DecodingFailure.apply))
-                  _               <- putWithOptimisticLocking(collection, name, f(decodedDocument), Some(document.updateTime))
+                  _               <- putWithOptimisticLocking(reference, f(decodedDocument), Some(document.updateTime))
                 } yield decodedDocument
               }
             }
             .flatTap { previousValue =>
-              Logger[F].trace(s"Updated [$collection/${name.short}] from [$previousValue] to [${previousValue.map(f)}]") *>
-                Logger[F].info(s"Updated [$collection/${name.short}].")
+              Logger[F].trace(s"Updated [$reference] from [$previousValue] to [${previousValue.map(f)}]") *>
+                Logger[F].info(show"Updated [$reference].")
             }
             .recoverWith {
               case Error.OptimisticLockingFailure if attemptsLeft > 1 =>
                 Logger[F].debug(
-                  s"Encounter optimistic locking failure while updating [$collection/${name.short}]. Attempts left: ${attemptsLeft - 1}"
+                  show"Encounter optimistic locking failure while updating [$reference]. Attempts left: ${attemptsLeft - 1}"
                 ) *> attemptUpdate(attemptsLeft - 1)
             }
             .onError {
               case throwable =>
                 Logger[F].error(throwable)(
-                  s"Failed to update item [$collection/${name.short}] due to $throwable"
+                  show"Failed to update item [$reference] due to ${throwable.toString}"
                 )
             }
 
-        Logger[F].debug(s"Updating [$collection/${name.short}]...") *> attemptUpdate(optimisticLockingAttempts)
+        Logger[F].debug(show"Updating [$reference]...") *> attemptUpdate(optimisticLockingAttempts)
       }
 
-      private def getDocument(collection: Collection, name: Name): F[Option[FirestoreDocument]] = {
+      private def getDocument(reference: Reference.Document): F[Option[FirestoreDocument]] = {
         for {
-          _      <- Logger[F].debug(s"Getting [$collection/${name.short}]...")
-          token  <- getToken.rethrow
+          _      <- Logger[F].debug(show"Getting [$reference]...")
+          token  <- getToken
           result <- sttpBackend
                       .send(
                         basicRequest
                           .header("Authorization", s"Bearer ${token.value}")
                           .get(
-                            uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents/$collection/${name.short}"
+                            createUri(reference)
                           )
                           .response(asJson[FirestoreDocument])
                       )
-                      .mapError(Error.CommunicationError.apply)
+                      .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
                       .flatMap { response =>
                         response.body match {
                           case Right(json)                           =>
-                            Logger[F].debug(s"Got [$collection/${name.short}]") *>
+                            Logger[F].debug(show"Got [$reference].") *>
                               json.some.pure[F]
                           case Left(_) if response.code.code === 404 =>
-                            Logger[F].info(s"Couldn't get [$collection/${name.short}]: not found") *>
+                            Logger[F].info(show"Couldn't get [$reference]: not found") *>
                               none[FirestoreDocument].pure[F]
                           case Left(responseException)               =>
                             Error.UnexpectedResponse(responseException.getMessage).raiseError[F, Option[FirestoreDocument]]
@@ -438,37 +455,40 @@ object Firestore {
                       }
         } yield result
       }.onError {
-        case throwable => Logger[F].error(throwable)(s"Failed to get [$collection/${name.short}] due to [$throwable]")
+        case throwable => Logger[F].error(throwable)(show"Failed to get [$reference] due to [${throwable.toString}]")
       }
 
       override def stream[V: FirestoreCodec](
-        collection: Collection,
+        collectionId: CollectionId,
         filters: List[FieldFilter] = List.empty,
         orderBy: List[Order] = List.empty,
-        pageSize: Int = 50
-      ): Stream[F, (Name.FullyQualified, Either[Error.DecodingFailure, V])] =
-        streamOfDocuments(collection, filters, orderBy, pageSize)
-          .map(document => document.name -> document.as[V].leftMap(Error.DecodingFailure.apply))
+        pageSize: Int = 50,
+        parent: Reference = rootReference
+      ): Stream[F, (Reference.Document, Either[Error.DecodingFailure, V])] =
+        streamOfDocuments(parent, collectionId, filters, orderBy, pageSize)
+          .map(document => document.reference -> document.as[V].leftMap(Error.DecodingFailure.apply))
 
       override def streamLogFailures[V: FirestoreCodec](
-        collection: Collection,
+        collectionId: CollectionId,
         filters: List[FieldFilter] = List.empty,
         orderBy: List[Order] = List.empty,
-        pageSize: Int = 50
-      ): Stream[F, (Name.FullyQualified, V)] =
-        stream(collection, filters, orderBy, pageSize).flatMap {
-          case (key, Right(value)) =>
+        pageSize: Int = 50,
+        parent: Reference = rootReference
+      ): Stream[F, (Reference.Document, V)] =
+        stream(collectionId, filters, orderBy, pageSize, parent).flatMap {
+          case (key, Right(value))      =>
             Stream.emit(key -> value)
-          case (name, Left(error)) =>
+          case (reference, Left(error)) =>
             Stream
               .eval(
-                Logger[F].error(show"Couldn't decode [$name] due to error [${error.toString}]")
+                Logger[F].error(show"Couldn't decode [$reference] due to error [${error.toString}]")
               )
               .flatMap(_ => Stream.empty)
         }
 
       private def streamOfDocuments(
-        collection: Collection,
+        parent: Reference,
+        collectionId: CollectionId,
         fieldFilters: List[FieldFilter],
         orderBy: List[Order],
         pageSize: Int
@@ -496,7 +516,7 @@ object Firestore {
             val query =
               JsonObject(
                 "from" -> List(
-                  JsonObject("collectionId" -> collection.asJson)
+                  JsonObject("collectionId" -> collectionId.asJson)
                 ).asJson,
                 "limit" -> limit.asJson,
                 "where" -> where.asJson,
@@ -508,7 +528,7 @@ object Firestore {
                       val values =
                         orderBy.map(order => lastDocument.fields.value.apply(order.fieldPath)) :+
                           FirestoreData(
-                            JsonObject("referenceValue" -> lastDocument.name.full.asJson)
+                            JsonObject("referenceValue" -> lastDocument.reference.full.asJson)
                           )
 
                       "startAt" ->
@@ -527,22 +547,20 @@ object Firestore {
 
           for {
             _      <- Logger[F].debug(
-                        s"Streaming part (last document: [${maybeLast.map(_.name)}], limit: [$limit])" +
-                          s"of collection [$collection] with filters [$fieldFilters]..."
+                        s"Streaming part (last document: [${maybeLast.map(_.reference)}], limit: [$limit])" +
+                          s"of collection [$collectionId] with filters [$fieldFilters]..."
                       )
-            token  <- getToken.rethrow
+            token  <- getToken
             request = basicRequest
                         .header("Authorization", s"Bearer ${token.value}")
-                        .post(
-                          uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents:runQuery"
-                        )
+                        .post(createUri(parent, ":runQuery"))
                         .body(createRequestBody)
                         .response(asJson[Json])
             result <- sttpBackend
                         .send(
                           request
                         )
-                        .mapError(Error.CommunicationError.apply)
+                        .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
                         .flatMap { response =>
                           response.body match {
                             case Right(jsons)            =>
@@ -569,7 +587,7 @@ object Firestore {
         }.onError {
           case throwable =>
             Logger[F].error(throwable)(
-              s"Failed to stream part [last document name: [$maybeLast], limit: [$limit] of [$collection] with filters [$fieldFilters] due to $throwable"
+              s"Failed to stream part [last document name: [$maybeLast], limit: [$limit] of [$collectionId] with filters [$fieldFilters] due to $throwable"
             )
         }
 
@@ -584,7 +602,7 @@ object Firestore {
         Stream
           .eval {
             Clock[F].realTimeInstant.flatTap { readTime =>
-              Logger[F].debug(s"Streaming collection [$collection] with filters [$fieldFilters] and read time [$readTime]...")
+              Logger[F].debug(s"Streaming collection [$collectionId] with filters [$fieldFilters] and read time [$readTime]...")
             }
           }
           .flatMap { readTime =>
@@ -592,36 +610,42 @@ object Firestore {
           }
       }
 
-      override def delete[V](collection: Collection, name: Name): F[Unit] = {
+      override def delete(collectionId: CollectionId, documentId: DocumentId, parent: Reference = rootReference): F[Unit] =
+        delete(parent.resolve(collectionId, documentId))
+
+      override def delete(reference: Reference.Document): F[Unit] = {
         for {
-          _      <- Logger[F].debug(s"Deleting [$collection/${name.short}]...")
-          token  <- getToken.rethrow
+          _      <- Logger[F].debug(show"Deleting [$reference]...")
+          token  <- getToken
           result <- sttpBackend
                       .send {
                         basicRequest
                           .header("Authorization", s"Bearer ${token.value}")
-                          .delete(uri"$baseUri/v1/projects/${projectId.value}/databases/(default)/documents/$collection/${name.short}")
+                          .delete(createUri(reference))
                       }
-                      .mapError(Error.CommunicationError.apply)
+                      .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
                       .flatMap { response =>
                         if (response.isSuccess)
-                          Logger[F].info(s"Deleted [$collection/${name.short}].")
+                          Logger[F].info(show"Deleted [$reference].")
                         else
                           Error.UnexpectedResponse(s"Expected success, got: [$response]").raiseError[F, Unit]
                       }
         } yield result
       }.onError {
         case throwable =>
-          Logger[F].error(throwable)(s"Failed to delete [$collection/${name.short}] due to $throwable")
+          Logger[F].error(throwable)(show"Failed to delete [$reference] due to ${throwable.toString}")
       }
 
-      private def extractName(documentJson: Json): Either[Error.UnexpectedResponse, Name.FullyQualified] =
+      private def extractReference(documentJson: Json): Either[Error.UnexpectedResponse, Reference.Document] =
         documentJson
           .hcursor
           .downField("name")
           .as[String]
-          .map(Name.FullyQualified.apply)
+          .flatMap(Reference.Document.parse)
           .leftMap(failure => Error.UnexpectedResponse(s"Couldn't decode document name: ${failure.getMessage}"))
+
+      private def createUri(reference: Reference, suffix: String = ""): Uri =
+        baseUri.addPath("v1").addPathSegment(Segment(reference.full + suffix, encoding = identity))
 
     }
 
@@ -631,24 +655,6 @@ object Firestore {
 
     implicit val decoder: Decoder[FirestoreErrorResponse] =
       Decoder.instance(_.downField("error").downField("status").as[String].map(FirestoreErrorResponse.apply))
-
-  }
-
-  // TODO rename class and methods
-  implicit class MapError[F[_]: Sync, A](fa: F[A]) {
-
-    def mapError2[E <: Throwable](f: PartialFunction[Throwable, E]): F[Either[E, A]] =
-      fa.attempt.flatMap {
-        case Right(a)        =>
-          a.asRight[E].pure[F]
-        case Left(throwable) =>
-          f.lift.apply(throwable).fold(throwable.raiseError[F, Either[E, A]])(_.asLeft[A].pure[F])
-      }
-
-    def mapError[E <: Throwable](f: Throwable => E): F[A] =
-      fa.adaptError {
-        case x => f(x)
-      }
 
   }
 
