@@ -3,14 +3,15 @@ package me.wojnowski.googlecloud4s.firestore
 import cats.Show
 import cats.syntax.all._
 import cats.parse.Parser
+import Parsers._
 
-sealed abstract case class Name(value: String) {}
+sealed abstract case class DocumentId(value: String) {}
 
-object Name {
+object DocumentId {
 
-  private[firestore] val parser = Parser.charsWhile(_ =!= '/').map(new Name(_) {})
+  private[firestore] val parser = idParser.map(new DocumentId(_) {})
 
-  def parse(raw: String): Either[ParsingError, Name] =
+  def parse(raw: String): Either[ParsingError, DocumentId] =
     parser
       .between(Parser.start, Parser.end)
       .parseAll(raw)
@@ -18,5 +19,5 @@ object Name {
 
   type ParsingError = IllegalArgumentException
 
-  implicit val show: Show[Name] = Show.fromToString
+  implicit val show: Show[DocumentId] = Show.fromToString
 }

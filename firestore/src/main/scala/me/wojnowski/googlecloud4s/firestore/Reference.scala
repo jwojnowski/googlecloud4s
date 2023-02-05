@@ -9,7 +9,8 @@ import cats.syntax.all._
 import io.circe.Decoder
 
 sealed trait Reference extends Product with Serializable {
-  def resolve(collectionId: CollectionId, documentName: Name): Reference.Document = Reference.Document(this, collectionId, documentName)
+  def resolve(collectionId: CollectionId, documentName: DocumentId): Reference.Document =
+    Reference.Document(this, collectionId, documentName)
 
   def full: String
 
@@ -31,8 +32,8 @@ object Reference {
     implicit val eq: Eq[Reference.Root] = Eq.fromUniversalEquals
   }
 
-  case class Document(parent: Reference, collectionId: CollectionId, documentName: Name) extends Reference {
-    def full = s"${parent.full}/${collectionId.name}/${documentName.value}"
+  case class Document(parent: Reference, collectionId: CollectionId, documentId: DocumentId) extends Reference {
+    def full = s"${parent.full}/${collectionId.value}/${documentId.value}"
 
     override def toString: String = full
 
@@ -76,7 +77,7 @@ object Reference {
       _                   <- Parser.string(Firestore.defaultDatabase)
       _                   <- Parser.char('/')
       _                   <- Parser.string("documents")
-      collectionNamePairs <- (CollectionId.parser.surroundedBy(Parser.char('/')) ~ Name.parser).rep0
+      collectionNamePairs <- (CollectionId.parser.surroundedBy(Parser.char('/')) ~ DocumentId.parser).rep0
       _                   <- Parser.end
     } yield collectionNamePairs.foldLeft[Reference](Root(ProjectId(projectId))) {
       case (reference, (collectionId, documentName)) => Document(reference, collectionId, documentName)

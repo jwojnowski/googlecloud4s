@@ -71,8 +71,8 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
       withSttpBackend { backend =>
         val rootCollectionId = "collection-a".toCollectionId
         val subCollectionId = "collection-b".toCollectionId
-        val documentAPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-a".toDocumentName)
-        val documentBPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-b".toDocumentName)
+        val documentAPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-a".toDocumentId)
+        val documentBPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-b".toDocumentId)
 
         implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, uri.some)
 
@@ -108,7 +108,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
       withSttpBackend { backend =>
         val rootCollectionId = "collection-x".toCollectionId
         val subCollectionId = "collection-y".toCollectionId
-        val documentAPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-a".toDocumentName)
+        val documentAPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-a".toDocumentId)
 
         implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, uri.some)
 

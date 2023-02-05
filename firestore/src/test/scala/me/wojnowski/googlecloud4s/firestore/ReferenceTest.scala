@@ -17,7 +17,7 @@ class ReferenceTest extends FunSuite {
     val rawName = "projects/project-id/databases/(default)/documents/root-collection/Gh5Efo66qP8fRg4L2fuY"
     val result = Reference.parse(rawName)
     val expected =
-      Reference.Document(Reference.Root(ProjectId("project-id")), "root-collection".toCollectionId, "Gh5Efo66qP8fRg4L2fuY".toDocumentName)
+      Reference.Document(Reference.Root(ProjectId("project-id")), "root-collection".toCollectionId, "Gh5Efo66qP8fRg4L2fuY".toDocumentId)
     assertEquals(result, Right(expected))
   }
 
@@ -43,13 +43,13 @@ class ReferenceTest extends FunSuite {
           Reference.Document(
             Reference.Root(ProjectId("project-id")),
             "collection-a".toCollectionId,
-            "document-a".toDocumentName
+            "document-a".toDocumentId
           ),
           "collection-b".toCollectionId,
-          "document-b".toDocumentName
+          "document-b".toDocumentId
         ),
         "collection-c".toCollectionId,
-        "document-c".toDocumentName
+        "document-c".toDocumentId
       )
     assertEquals(result, Right(expected))
   }
@@ -79,13 +79,13 @@ class ReferenceTest extends FunSuite {
         Reference.Document(
           Reference.Root(ProjectId("project-id")),
           "collection-a".toCollectionId,
-          "document-a".toDocumentName
+          "document-a".toDocumentId
         ),
         "collection-b".toCollectionId,
-        "document-b".toDocumentName
+        "document-b".toDocumentId
       ),
       "collection-c".toCollectionId,
-      "document-c".toDocumentName
+      "document-c".toDocumentId
     )
 
     val result = path.full
@@ -97,7 +97,7 @@ class ReferenceTest extends FunSuite {
 
   test("Resolving root") {
     val collectionId = "collection-a".toCollectionId
-    val documentId = "document-a".toDocumentName
+    val documentId = "document-a".toDocumentId
 
     val path = Reference.Root(ProjectId("project-id"))
 
@@ -108,9 +108,9 @@ class ReferenceTest extends FunSuite {
 
   test("Resolving document") {
     val collectionAId = "collection-a".toCollectionId
-    val documentAId = "document-a".toDocumentName
+    val documentAId = "document-a".toDocumentId
     val collectionBId = "collection-a".toCollectionId
-    val documentBId = "document-a".toDocumentName
+    val documentBId = "document-a".toDocumentId
 
     val rootPath = Reference.Root(ProjectId("project-id"))
     val path = Reference.Document(rootPath, collectionAId, documentAId)

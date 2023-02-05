@@ -28,11 +28,11 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
 
   import FirestoreCodec.circe._
 
-  val documentAName = "document-a".toDocumentName
-  val documentCName = "document-c".toDocumentName
-  val nonExistentDocumentName = "idontexist".toDocumentName
+  val documentAName = "document-a".toDocumentId
+  val documentCName = "document-c".toDocumentId
+  val nonExistentDocumentName = "idontexist".toDocumentId
 
-  test("batchGet supports document names") {
+  test("batchGet supports document IDs") {
     withContainerUri { uri =>
       withSttpBackend { backend =>
         val attempts = 3
@@ -44,7 +44,7 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
           documentBReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
           results            <- firestore.batchGet[TestDocumentWithCounter](
                                   collectionA,
-                                  NonEmptyList.of(documentAName, documentBReference.documentName)
+                                  NonEmptyList.of(documentAName, documentBReference.documentId)
                                 )
         } yield assertEquals(
           results.toSortedMap.view.mapValues(_.nonEmpty).toMap,
@@ -88,7 +88,7 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
 
         val firestore = Firestore.instance[IO](backend, projectId, uri.some, optimisticLockingAttempts = attempts)
 
-        val referenceFromDifferentProject = Reference.Root(ProjectId("other-project-id")).resolve(collectionB, "document-b".toDocumentName)
+        val referenceFromDifferentProject = Reference.Root(ProjectId("other-project-id")).resolve(collectionB, "document-b".toDocumentId)
 
         for {
           documentAReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
