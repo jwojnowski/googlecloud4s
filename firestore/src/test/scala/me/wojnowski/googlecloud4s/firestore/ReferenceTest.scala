@@ -17,7 +17,10 @@ class ReferenceTest extends FunSuite {
     val rawName = "projects/project-id/databases/(default)/documents/root-collection/Gh5Efo66qP8fRg4L2fuY"
     val result = Reference.parse(rawName)
     val expected =
-      Reference.Document(Reference.Root(ProjectId("project-id")), "root-collection".toCollectionId, "Gh5Efo66qP8fRg4L2fuY".toDocumentId)
+      Reference.Document(
+        Reference.Collection(Reference.Root(ProjectId("project-id")), "root-collection".toCollectionId),
+        "Gh5Efo66qP8fRg4L2fuY".toDocumentId
+      )
     assertEquals(result, Right(expected))
   }
 
@@ -39,16 +42,22 @@ class ReferenceTest extends FunSuite {
     val result = Reference.parse(rawName)
     val expected =
       Reference.Document(
-        Reference.Document(
+        Reference.Collection(
           Reference.Document(
-            Reference.Root(ProjectId("project-id")),
-            "collection-a".toCollectionId,
-            "document-a".toDocumentId
+            Reference.Collection(
+              Reference.Document(
+                Reference.Collection(
+                  Reference.Root(ProjectId("project-id")),
+                  "collection-a".toCollectionId
+                ),
+                "document-a".toDocumentId
+              ),
+              "collection-b".toCollectionId
+            ),
+            "document-b".toDocumentId
           ),
-          "collection-b".toCollectionId,
-          "document-b".toDocumentId
+          "collection-c".toCollectionId
         ),
-        "collection-c".toCollectionId,
         "document-c".toDocumentId
       )
     assertEquals(result, Right(expected))
@@ -75,16 +84,22 @@ class ReferenceTest extends FunSuite {
 
   test("Path.Document toString") {
     val path = Reference.Document(
-      Reference.Document(
+      Reference.Collection(
         Reference.Document(
-          Reference.Root(ProjectId("project-id")),
-          "collection-a".toCollectionId,
-          "document-a".toDocumentId
+          Reference.Collection(
+            Reference.Document(
+              Reference.Collection(
+                Reference.Root(ProjectId("project-id")),
+                "collection-a".toCollectionId
+              ),
+              "document-a".toDocumentId
+            ),
+            "collection-b".toCollectionId
+          ),
+          "document-b".toDocumentId
         ),
-        "collection-b".toCollectionId,
-        "document-b".toDocumentId
+        "collection-c".toCollectionId
       ),
-      "collection-c".toCollectionId,
       "document-c".toDocumentId
     )
 
@@ -101,8 +116,8 @@ class ReferenceTest extends FunSuite {
 
     val path = Reference.Root(ProjectId("project-id"))
 
-    val result = path.resolve(collectionId, documentId)
-    val expected = Reference.Document(path, collectionId, documentId)
+    val result = path.collection(collectionId).document(documentId)
+    val expected = Reference.Document(Reference.Collection(path, collectionId), documentId)
     assertEquals(result, expected)
   }
 
@@ -113,10 +128,20 @@ class ReferenceTest extends FunSuite {
     val documentBId = "document-a".toDocumentId
 
     val rootPath = Reference.Root(ProjectId("project-id"))
-    val path = Reference.Document(rootPath, collectionAId, documentAId)
+    val path = Reference.Document(Reference.Collection(rootPath, collectionAId), documentAId)
 
-    val result = path.resolve(collectionBId, documentBId)
-    val expected = Reference.Document(Reference.Document(rootPath, collectionAId, documentAId), collectionBId, documentBId)
+    val result = path.collection(collectionBId).document(documentBId)
+    val expected =
+      Reference.Document(
+        Reference.Collection(
+          Reference.Document(
+            Reference.Collection(rootPath, collectionAId),
+            documentAId
+          ),
+          collectionBId
+        ),
+        documentBId
+      )
     assertEquals(result, expected)
   }
 
