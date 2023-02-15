@@ -38,7 +38,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
       withSttpBackend { backend =>
         implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, uri.some)
 
-        val collection = "test-collection".toCollectionId
+        val collection = Reference.Root(projectId).collection("test-collection".toCollectionId)
 
         val fifteens = List.fill(10)(JsonObject("foo" -> "15".asJson).asJson)
         val sixteens = List.fill(10)(JsonObject("foo" -> "16".asJson).asJson)
@@ -69,10 +69,10 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
   test("Subcollections") {
     withContainerUri { uri =>
       withSttpBackend { backend =>
-        val rootCollectionId = "collection-a".toCollectionId
+        val rootCollection = Reference.Root(projectId).collection("collection-a".toCollectionId)
         val subCollectionId = "collection-b".toCollectionId
-        val documentAPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-a".toDocumentId)
-        val documentBPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-b".toDocumentId)
+        val documentAPath = rootCollection.document("document-a".toDocumentId)
+        val documentBPath = rootCollection.document("document-b".toDocumentId)
 
         implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, uri.some)
 
@@ -84,15 +84,15 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
         val documentBB = JsonObject("bar" -> "BB".asJson)
 
         for {
-          _                <- Firestore[IO].put(documentAPath, rootA)
-          _                <- Firestore[IO].put(documentBPath, rootB)
-          _                <- Firestore[IO].add(subCollectionId, documentAA, parent = documentAPath)
-          _                <- Firestore[IO].add(subCollectionId, documentAB, parent = documentAPath)
-          _                <- Firestore[IO].add(subCollectionId, documentBA, parent = documentBPath)
-          _                <- Firestore[IO].add(subCollectionId, documentBB, parent = documentBPath)
-          rootItems        <- Firestore[IO].stream[JsonObject](rootCollectionId).compile.toList
-          collectionAItems <- Firestore[IO].stream[JsonObject](subCollectionId, parent = documentAPath).compile.toList
-          collectionBItems <- Firestore[IO].stream[JsonObject](subCollectionId, parent = documentBPath).compile.toList
+          _                <- Firestore[IO].set(documentAPath, rootA)
+          _                <- Firestore[IO].set(documentBPath, rootB)
+          _                <- Firestore[IO].add(documentAPath.collection(subCollectionId), documentAA)
+          _                <- Firestore[IO].add(documentAPath.collection(subCollectionId), documentAB)
+          _                <- Firestore[IO].add(documentBPath.collection(subCollectionId), documentBA)
+          _                <- Firestore[IO].add(documentBPath.collection(subCollectionId), documentBB)
+          rootItems        <- Firestore[IO].stream[JsonObject](rootCollection).compile.toList
+          collectionAItems <- Firestore[IO].stream[JsonObject](documentAPath.collection(subCollectionId)).compile.toList
+          collectionBItems <- Firestore[IO].stream[JsonObject](documentBPath.collection(subCollectionId)).compile.toList
         } yield {
           assertEquals(rootItems.collect { case (_, Right(jsonObject)) => jsonObject }.toSet, Set(rootA, rootB))
           assertEquals(rootItems.collect { case (_, Right(jsonObject)) => jsonObject }.toSet, Set(rootA, rootB))
@@ -108,12 +108,12 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
       withSttpBackend { backend =>
         val rootCollectionId = "collection-x".toCollectionId
         val subCollectionId = "collection-y".toCollectionId
-        val documentAPath = Reference.Document(Reference.Root(projectId), rootCollectionId, "document-a".toDocumentId)
+        val documentAPath = Reference.Root(projectId).collection(rootCollectionId).document("document-a".toDocumentId)
 
         implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, uri.some)
 
         for {
-          items <- Firestore[IO].stream[JsonObject](subCollectionId, parent = documentAPath).compile.toList
+          items <- Firestore[IO].stream[JsonObject](documentAPath.collection(subCollectionId)).compile.toList
         } yield assertEquals(items, List.empty)
       }
     }

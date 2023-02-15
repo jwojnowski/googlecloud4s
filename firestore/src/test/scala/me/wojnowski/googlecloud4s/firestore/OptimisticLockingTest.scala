@@ -26,7 +26,7 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
 
   val projectId: ProjectId = ProjectId("project-id")
 
-  val collection = "collection-a".toCollectionId
+  val collection = Reference.Root(projectId).collection("collection-a".toCollectionId)
 
   import FirestoreCodec.circe._
 
