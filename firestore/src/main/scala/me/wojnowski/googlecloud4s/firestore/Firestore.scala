@@ -2,6 +2,7 @@ package me.wojnowski.googlecloud4s.firestore
 
 import cats.Functor
 import cats.data.Chain
+import cats.data.NonEmptyChain
 import cats.data.NonEmptyList
 import cats.data.NonEmptyMap
 import cats.effect.Clock
@@ -35,7 +36,6 @@ import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
 import sttp.model.StatusCode
 import sttp.model.Uri
-import sttp.model.Uri.Segment
 
 import scala.collection.immutable.SortedMap
 import scala.util.control.NonFatal
@@ -591,8 +591,15 @@ object Firestore {
           .flatMap(Reference.Document.parse)
           .leftMap(failure => Error.UnexpectedResponse(s"Couldn't decode document name: ${failure.getMessage}"))
 
-      private def createUri(reference: Reference, suffix: String = ""): Uri =
-        baseUri.addPath("v1").addPathSegment(Segment(reference.full + suffix, encoding = identity))
+      private def createUri(reference: Reference, suffix: String = ""): Uri = {
+        val segmentsWithSuffix =
+          if (suffix.isBlank)
+            reference.segments
+          else
+            NonEmptyChain.fromChainAppend(reference.segments.init, reference.segments.last + suffix)
+
+        baseUri.addPath("v1").addPath(segmentsWithSuffix.toList)
+      }
 
     }
 

@@ -2,14 +2,17 @@ package me.wojnowski.googlecloud4s.firestore
 
 import cats.Eq
 import cats.Show
+import cats.data.NonEmptyChain
 import cats.parse.Parser
 import cats.parse.Parser0
-import me.wojnowski.googlecloud4s.ProjectId
 import cats.syntax.all._
 import io.circe.Decoder
+import me.wojnowski.googlecloud4s.ProjectId
 
 sealed trait Reference extends Product with Serializable {
-  def full: String
+  def full: String = segments.mkString_("/")
+
+  def segments: NonEmptyChain[String]
 
   def contains(other: Reference): Boolean
 }
@@ -23,7 +26,7 @@ object Reference {
   }
 
   case class Root(projectId: ProjectId) extends NonCollection {
-    def full = s"projects/${projectId.value}/databases/${Firestore.defaultDatabase}/documents"
+    def segments: NonEmptyChain[String] = NonEmptyChain.of("projects", projectId.value, "databases", Firestore.defaultDatabase, "documents")
 
     override def contains(other: Reference): Boolean =
       other =!= this
@@ -36,7 +39,7 @@ object Reference {
   }
 
   case class Document(parent: Reference.Collection, documentId: DocumentId) extends NonCollection {
-    def full = s"${parent.full}/${documentId.value}"
+    def segments: NonEmptyChain[String] = parent.segments :+ documentId.value
 
     override def toString: String = full
 
@@ -64,7 +67,7 @@ object Reference {
   }
 
   case class Collection(parent: Reference.NonCollection, collectionId: CollectionId) extends Reference {
-    def full: String = s"${parent.full}/${collectionId.value}"
+    def segments: NonEmptyChain[String] = parent.segments :+ collectionId.value
 
     override def contains(other: Reference): Boolean =
       (other == this) || parent.contains(other)
