@@ -35,7 +35,7 @@ object FirestoreDsl {
     def firestore: Firestore[F] = Firestore[F]
   }
 
-  implicit class ImplicitDocumentReferenceOps[F[_]: Firestore](val document: Reference.Document) {
+  implicit class ImplicitDocumentReferenceOps[F[_]: Firestore](val document: Reference.Document) extends DocumentReferenceOps[F] {
     def firestore: Firestore[F] = Firestore[F]
   }
 
