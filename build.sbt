@@ -46,8 +46,8 @@ lazy val Versions = new {
   val fs2 = "3.1.2"
 
   val cats = new {
-    val core = "2.8.0"
-    val effect = "3.3.14"
+    val core = "2.9.0"
+    val effect = "3.4.8"
     val parse = "0.3.9"
   }
 
@@ -58,8 +58,8 @@ lazy val Versions = new {
   val mUnit = "0.7.29"
   val mUnitCatsEffect = "1.0.7"
 
-  val testContainers = "1.17.3"
-  val testContainersScalaMunit = "0.40.10"
+  val testContainers = "1.17.6"
+  val testContainersScalaMunit = "0.40.12"
 }
 
 lazy val core = (project in file("core"))

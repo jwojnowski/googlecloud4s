@@ -19,7 +19,7 @@ trait TestContainerUtils {
   def extractUri: containerDef.Container => String
 
   protected def withSttpBackend[A](f: SttpBackend[IO, Fs2Streams[IO]] => IO[A]): IO[A] =
-    Dispatcher[IO].use { dispatcher =>
+    Dispatcher.parallel[IO].use { dispatcher =>
       HttpClientFs2Backend(dispatcher).flatMap(f)
     }
 
@@ -31,5 +31,5 @@ trait TestContainerUtils {
 }
 
 object TestContainerUtils {
-  val dockerImage: DockerImageName = DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:416.0.0-emulators")
+  val dockerImage: DockerImageName = DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:419.0.0-emulators")
 }

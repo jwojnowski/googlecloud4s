@@ -7,7 +7,9 @@ import cats.data.NonEmptyList
 import cats.data.NonEmptyMap
 import cats.effect.Clock
 import cats.effect.Sync
+import io.circe.Decoder
 import io.circe.Encoder
+import io.circe.HCursor
 import io.circe.Json
 import io.circe.JsonObject
 import io.circe.syntax._
@@ -25,8 +27,6 @@ import eu.timepit.refined.api.Refined
 import fs2.Chunk
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-import io.circe.Decoder
-import io.circe.HCursor
 import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
 import me.wojnowski.googlecloud4s.ProjectId
 import me.wojnowski.googlecloud4s.auth.AccessToken
@@ -51,6 +51,8 @@ trait Firestore[F[_]] {
   def update[V: FirestoreCodec](reference: Reference.Document, f: V => V): F[Option[V]]
 
   def batchGet[V: FirestoreCodec](paths: NonEmptyList[Reference.Document]): F[NonEmptyMap[Reference.Document, Option[V]]]
+
+  def batchWrite(writes: NonEmptyList[Write], labels: Map[String, String] = Map.empty): F[BatchWriteResponse]
 
   // TODO create some Query class
   def stream[V: FirestoreCodec](
@@ -93,7 +95,7 @@ object Firestore {
   }
 
   case class FirestoreDocument(reference: Reference.Document, fields: Fields, updateTime: Instant) {
-    def as[V: FirestoreCodec]: Either[FirestoreCodec.Error, V] = fields.toFirestoreData.as[V]
+    def as[V: FirestoreCodec]: Either[FirestoreCodec.Error, V] = fields.toMapValue.as[V]
   }
 
   object FirestoreDocument {
@@ -101,39 +103,35 @@ object Firestore {
     implicit val decoder: Decoder[FirestoreDocument] =
       Decoder.forProduct3[FirestoreDocument, Reference.Document, Fields, Instant]("name", "fields", "updateTime")(FirestoreDocument.apply)
 
-    case class Fields(value: Map[String, FirestoreData]) {
-      def toFirestoreData: FirestoreData =
-        FirestoreData(JsonObject("mapValue" -> JsonObject("fields" -> Functor[Map[String, *]].fmap(value)(_.json.asJson).asJson).asJson))
+    case class Fields(value: Map[String, Value]) {
+      def toMapValue: Value.Map =
+        Value.Map(value)
     }
 
     object Fields {
 
+      def apply(fields: (String, Value)*): Fields = Fields(Map.from(fields))
+
       implicit val encoder: Encoder[Fields] =
-        Encoder[Map[String, JsonObject]].contramap(x => Functor[Map[String, *]].fmap(x.value)(_.json))
+        Encoder[Map[String, JsonObject]].contramap(x => Functor[Map[String, *]].fmap(x.value)(_.firestoreJson))
 
       implicit val decoder: Decoder[Fields] =
-        Decoder[Map[String, JsonObject]].map(map => Fields(Functor[Map[String, *]].fmap(map)(FirestoreData.apply)))
+        Decoder[Map[String, Json]].emap {
+          _.toList
+            .traverse { case (fieldName, json) => Value.fromFirestoreJson(json).map(fieldName -> _) }
+            .map(fields => Fields(fields.toMap))
+        }
 
-      def fromFirestoreData(data: FirestoreData): Either[String, Fields] =
-        data
-          .json
-          .asJson
-          .hcursor
-          .downField("mapValue")
-          .downField("fields")
-          .as[Map[String, JsonObject]]
-          .map(fields => Fields(Functor[Map[String, *]].fmap(fields)(obj => FirestoreData(obj))))
-          .leftMap(_.getMessage) // FIXME
     }
 
   }
 
-  case class FieldFilter(fieldPath: String, value: FirestoreData, operator: Operator)
+  case class FieldFilter(fieldPath: String, operator: Operator, value: Value)
 
   object FieldFilter {
 
-    def apply[V: FirestoreCodec](fieldPath: String, value: V, operator: Operator): FieldFilter =
-      FieldFilter(fieldPath, value.asFirestoreData, operator)
+    def apply[V: FirestoreCodec](fieldPath: String, operator: Operator, value: V): FieldFilter =
+      FieldFilter(fieldPath, operator, value.asFirestoreValue)
 
     implicit val encoder: Encoder[FieldFilter] =
       Encoder.instance { filter =>
@@ -143,7 +141,7 @@ object Firestore {
               "fieldPath" -> filter.fieldPath.asJson
             ).asJson,
             "op" -> filter.operator.value.asJson,
-            "value" -> filter.value.json.asJson
+            "value" -> filter.value.firestoreJson.asJson
           ).asJson
         ).asJson
       }
@@ -199,8 +197,12 @@ object Firestore {
           case e: TokenProvider.Error => Error.AuthError(e)
         }
 
-      private def encodeFields[V: FirestoreCodec](value: V): F[Either[Error.EncodingFailure, FirestoreDocument.Fields]] =
-        FirestoreDocument.Fields.fromFirestoreData(value.asFirestoreData).leftMap(Error.EncodingFailure.apply).pure[F]
+      private def encodeFields[V: FirestoreCodec](value: V): F[Either[Error.EncodingFailure, FirestoreDocument.Fields]] = {
+        value.asFirestoreValue match {
+          case map: Value.Map => Right(Fields(map.value))
+          case value          => Left(Error.EncodingFailure(s"Expected ${Value.Map}, got ${value.productPrefix}"))
+        }
+      }.pure[F]
 
       override def add[V: FirestoreCodec](collection: Reference.Collection, value: V): F[Reference.Document] = {
         for {
@@ -330,6 +332,36 @@ object Firestore {
         notMatchingReferences.toNel.toRight(()).swap.leftMap(Error.ReferencesDontMatchRoot(_, rootReference))
       }
 
+      override def batchWrite(writes: NonEmptyList[Write], labels: Map[String, String]): F[BatchWriteResponse] = {
+        for {
+          _        <- Logger[F].debug(s"Executing batch write with [${writes.size}] writes.")
+          token    <- getToken
+          response <- sttpBackend
+                        .send {
+                          basicRequest
+                            .header("Authorization", s"Bearer ${token.value}")
+                            .post(createUri(rootReference, ":batchWrite"))
+                            .body(JsonObject("writes" -> writes.asJson, "labels" -> labels.asJson))
+                            .response(asJson[BatchWriteResponse])
+                        }
+                        .flatMap { response =>
+                          response.body match {
+                            case Right(batchWriteResponse) =>
+                              batchWriteResponse.pure[F]
+                            case Left(error)               =>
+                              Error
+                                .UnexpectedResponse(
+                                  s"Couldn't decode streaming response due to [${error.getMessage}]"
+                                )
+                                .raiseError[F, BatchWriteResponse]
+                          }
+                        }
+          _        <- Logger[F].info(s"Executed batch write with [${writes.size}] writes.")
+        } yield response
+      }.onError {
+        case throwable => Logger[F].error(throwable)(show"Failed batch write due to [${throwable.toString}]")
+      }
+
       override def get[V: FirestoreCodec](reference: Reference.Document): F[Option[V]] =
         Logger[F].debug(show"Getting [$reference]...") *>
           getDocument(reference)
@@ -388,9 +420,7 @@ object Firestore {
                       .send(
                         basicRequest
                           .header("Authorization", s"Bearer ${token.value}")
-                          .get(
-                            createUri(reference)
-                          )
+                          .get(createUri(reference))
                           .response(asJson[FirestoreDocument])
                       )
                       .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
@@ -477,13 +507,11 @@ object Firestore {
                     .fromIterable(maybeLast.map { lastDocument =>
                       val values =
                         orderBy.map(order => lastDocument.fields.value.apply(order.fieldPath)) :+
-                          FirestoreData(
-                            JsonObject("referenceValue" -> lastDocument.reference.full.asJson)
-                          )
+                          Value.Reference(lastDocument.reference)
 
                       "startAt" ->
                         JsonObject(
-                          "values" -> values.map(_.json.asJson).asJson,
+                          "values" -> values.map(_.firestoreJson.asJson).asJson,
                           "before" -> false.asJson
                         ).asJson
                     })

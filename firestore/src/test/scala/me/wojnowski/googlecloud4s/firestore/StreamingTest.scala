@@ -50,8 +50,8 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
                        .stream[Json](
                          collection,
                          filters = List(
-                           FieldFilter("foo", "14", FieldFilter.Operator.>),
-                           FieldFilter("foo", "16", FieldFilter.Operator.<)
+                           FieldFilter("foo", FieldFilter.Operator.>, "14"),
+                           FieldFilter("foo", FieldFilter.Operator.<, "16")
                          ),
                          orderBy = List(
                            Order("foo", Order.Direction.Descending)
