@@ -49,6 +49,8 @@ object Value {
   case class Array(value: Iterable[Value]) extends Value("arrayValue")
 
   object Array {
+    def apply(): Array = Array(List.empty)
+
     def apply[V <: Value](head: V, tail: V*): Array = Array(head +: tail)
   }
 

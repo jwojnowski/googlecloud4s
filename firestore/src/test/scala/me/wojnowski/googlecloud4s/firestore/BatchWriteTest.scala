@@ -4,21 +4,15 @@ import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.IO
 import cats.syntax.all._
-import me.wojnowski.googlecloud4s.ProjectId
-import me.wojnowski.googlecloud4s.auth.TokenProvider
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Helpers.CollectionIdString
 import me.wojnowski.googlecloud4s.firestore.Helpers.ShortNameString
-import me.wojnowski.googlecloud4s.firestore.Write.FieldTransform
-import me.wojnowski.googlecloud4s.firestore.Value
 import munit.CatsEffectSuite
-import sttp.client3.httpclient.fs2.HttpClientFs2Backend
 
 import java.time.Instant
 import scala.concurrent.duration.DurationInt
 
-class BatchWriteTest extends CatsEffectSuite {
-  val projectId: ProjectId = ProjectId("test-project-id")
+class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
 
   val collectionA = Reference.Root(projectId).collection("collection-a".toCollectionId)
   val collectionB = Reference.Root(projectId).collection("collection-b".toCollectionId)
@@ -26,7 +20,7 @@ class BatchWriteTest extends CatsEffectSuite {
   val document = Fields(
     "thisIsAString" -> Value.String("FOO"),
     "anInteger" -> Value.Integer(1),
-    "anArrayOfStrings" -> Value.Array(List("B", "D", "G").map(Value.String)),
+    "anArrayOfStrings" -> Value.Array(List("B", "D", "G").map(Value.String.apply)),
     "timestamp" -> Value.Timestamp(Instant.EPOCH)
   )
 
@@ -41,16 +35,8 @@ class BatchWriteTest extends CatsEffectSuite {
   val documentBA = collectionB / "document-ba".toDocumentId
   val documentBB = collectionB / "document-bb".toDocumentId
 
-  def withFirestore[F[_]: Async](f: Firestore[F] => F[Unit]): F[Unit] =
-    HttpClientFs2Backend.resource().use { implicit backend =>
-      TokenProvider.fromEnvironment[F].flatMap { implicit tokenProvider =>
-        val firestore = Firestore.instance[F](backend, projectId)
-        f(firestore)
-      }
-    }
-
-  test("delete operations".ignore) {
-    withFirestore[IO] { firestore =>
+  test("delete operations") {
+    withFirestore { firestore =>
       for {
         _               <- firestore.set(documentAA, document)
         _               <- firestore.set(documentAB, document)
@@ -68,8 +54,8 @@ class BatchWriteTest extends CatsEffectSuite {
     }
   }
 
-  test("transform operations".ignore) {
-    withFirestore[IO] { firestore =>
+  test("transform operations") {
+    withFirestore { firestore =>
       for {
         _        <- firestore.set(documentAA, document)
         _        <- firestore.set(documentAB, document)
@@ -83,37 +69,39 @@ class BatchWriteTest extends CatsEffectSuite {
                       NonEmptyList.of(
                         Write.DocumentTransform(
                           documentAA,
-                          fieldTransforms = NonEmptyList.of(FieldTransform.Maximum("anInteger", 3))
+                          fieldTransforms = NonEmptyList.of(FieldTransform.Maximum(FieldPath("anInteger"), 3))
                         ),
                         Write.DocumentTransform(
                           documentAB,
-                          fieldTransforms = NonEmptyList.of(FieldTransform.Maximum("anInteger", -3))
+                          fieldTransforms = NonEmptyList.of(FieldTransform.Maximum(FieldPath("anInteger"), -3))
                         ),
                         Write.DocumentTransform(
                           documentAC,
-                          fieldTransforms = NonEmptyList.of(FieldTransform.Minimum("anInteger", 3))
+                          fieldTransforms = NonEmptyList.of(FieldTransform.Minimum(FieldPath("anInteger"), 3))
                         ),
                         Write.DocumentTransform(
                           documentAD,
-                          fieldTransforms = NonEmptyList.of(FieldTransform.Minimum("anInteger", -3))
+                          fieldTransforms = NonEmptyList.of(FieldTransform.Minimum(FieldPath("anInteger"), -3))
                         ),
                         Write.DocumentTransform(
                           documentAE,
-                          fieldTransforms = NonEmptyList.of(FieldTransform.Increment("anInteger", 5))
+                          fieldTransforms = NonEmptyList.of(FieldTransform.Increment(FieldPath("anInteger"), 5))
                         ),
                         Write.DocumentTransform(
                           documentAF,
-                          fieldTransforms =
-                            NonEmptyList.of(FieldTransform.AppendMissingElements("anArrayOfStrings", NonEmptyList.of("A", "B", "C", "D")))
+                          fieldTransforms = NonEmptyList.of(
+                            FieldTransform.AppendMissingElements(FieldPath("anArrayOfStrings"), NonEmptyList.of("A", "B", "C", "D"))
+                          )
                         ),
                         Write.DocumentTransform(
                           documentAG,
                           fieldTransforms =
-                            NonEmptyList.of(FieldTransform.RemoveAllFromArray("anArrayOfStrings", NonEmptyList.of("B", "G")))
+                            NonEmptyList.of(FieldTransform.RemoveAllFromArray(FieldPath("anArrayOfStrings"), NonEmptyList.of("B", "G")))
                         ),
                         Write.DocumentTransform(
                           documentAH,
-                          fieldTransforms = NonEmptyList.of(FieldTransform.SetToServerValue("timestamp", ServerValue.RequestTime))
+                          fieldTransforms =
+                            NonEmptyList.of(FieldTransform.SetToServerValue(FieldPath("timestamp"), ServerValue.RequestTime))
                         )
                       )
                     )
@@ -156,7 +144,7 @@ class BatchWriteTest extends CatsEffectSuite {
     }
   }
 
-  test("update operations without a mask".ignore) {
+  test("update operations without a mask") {
     val newValues = Fields(
       "foo" -> Value.String("Foo"),
       "object" -> Value.Map(
@@ -167,7 +155,7 @@ class BatchWriteTest extends CatsEffectSuite {
       )
     )
 
-    withFirestore[IO] { firestore =>
+    withFirestore { firestore =>
       for {
         _        <- firestore.set(documentAA, document)
         response <- firestore.batchWrite(
@@ -187,7 +175,7 @@ class BatchWriteTest extends CatsEffectSuite {
     }
   }
 
-  test("update operations with a mask".ignore) {
+  test("update operations with a mask") {
     val newValues = Fields(
       "thisIsAString" -> Value.String("This should replace the old value"),
       "thisIsANewMap" -> Value.Map(
@@ -202,7 +190,7 @@ class BatchWriteTest extends CatsEffectSuite {
       document.value ++ newValues.value
     )
 
-    withFirestore[IO] { firestore =>
+    withFirestore { firestore =>
       for {
         _        <- firestore.set(documentAA, document)
         response <- firestore.batchWrite(
@@ -223,7 +211,7 @@ class BatchWriteTest extends CatsEffectSuite {
     }
   }
 
-  test("update with transforms".ignore) {
+  test("update with transforms") {
     val originalValues = Fields(
       "aString" -> Value.String("Initial value"),
       "anInteger" -> Value.Integer(1)
@@ -239,7 +227,7 @@ class BatchWriteTest extends CatsEffectSuite {
       "anInteger" -> Value.Integer(2)
     )
 
-    withFirestore[IO] { firestore =>
+    withFirestore { firestore =>
       for {
         _        <- firestore.set(documentAA, originalValues)
         response <- firestore.batchWrite(
@@ -247,7 +235,7 @@ class BatchWriteTest extends CatsEffectSuite {
                         Write.Update(
                           documentAA,
                           newValues,
-                          updateTransforms = List(FieldTransform.Increment("anInteger", -3))
+                          updateTransforms = List(FieldTransform.Increment(FieldPath("anInteger"), -3))
                         )
                       )
                     )
@@ -266,8 +254,8 @@ class BatchWriteTest extends CatsEffectSuite {
     }
   }
 
-  test("update with precondition".ignore) {
-    withFirestore[IO] { firestore =>
+  test("update with precondition") {
+    withFirestore { firestore =>
       val newValues = Fields(
         "foo" -> Value.String("bar")
       )

@@ -12,7 +12,7 @@ trait FirestoreCodec[A] {
 
 object FirestoreCodec extends StandardCodecs {
 
-  sealed trait Error extends NoStackTrace with Product with Serializable // TODO check toString
+  sealed trait Error extends NoStackTrace with Product with Serializable
 
   object Error {
     case class UnexpectedValue(encountered: Value) extends Exception(s"Unexpected value type: [${encountered.productPrefix}]") with Error

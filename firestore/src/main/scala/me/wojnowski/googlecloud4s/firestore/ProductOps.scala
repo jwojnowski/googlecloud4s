@@ -11,18 +11,18 @@ object ProductOps {
     def productPrefixUpperSnakeCase: String =
       splitByUppercase(product.productPrefix).map(_.toUpperCase).mkString("_")
 
-    def productPrefixLowerCamelCase: String = withFirstLetterLowercase(product.productPrefix)
+    def productPrefixLowerCamelCase: String =
+      withFirstLetterLowercase(product.productPrefix)
 
-    // TODO Take a closer look at the performance
     @tailrec
     private def splitByUppercase(s: String, previousChunks: Vector[String] = Vector.empty): Vector[String] = {
 
-      val (lowercase, remaining) = withFirstLetterLowercase(s).span(_.isLower)
+      val (lowercaseLetters, remainingLetters) = withFirstLetterLowercase(s).span(_.isLower)
 
-      if (remaining.nonEmpty)
-        splitByUppercase(remaining, previousChunks :+ lowercase)
+      if (remainingLetters.nonEmpty)
+        splitByUppercase(remainingLetters, previousChunks :+ lowercaseLetters)
       else
-        previousChunks :+ lowercase
+        previousChunks :+ lowercaseLetters
     }
 
     private def withFirstLetterLowercase(s: String) =

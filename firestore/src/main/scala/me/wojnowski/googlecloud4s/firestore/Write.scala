@@ -1,14 +1,10 @@
 package me.wojnowski.googlecloud4s.firestore
 
 import cats.data.NonEmptyList
-import io.circe.Encoder
-import io.circe.Json
-import io.circe.JsonObject
-import me.wojnowski.googlecloud4s.firestore.ProductOps.ProductNameToSnakeCase
 import io.circe.syntax._
+import io.circe.Encoder
+import io.circe.JsonObject
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
-import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
-import me.wojnowski.googlecloud4s.firestore.Value
 
 sealed trait Write extends Product with Serializable {
   def currentDocument: Option[Precondition]
@@ -30,73 +26,6 @@ object Write {
     fieldTransforms: NonEmptyList[FieldTransform],
     currentDocument: Option[Precondition] = None
   ) extends Write
-
-  // TODO move outside of write?
-  sealed trait FieldTransform extends Product with Serializable {
-    def fieldPath: String // TODO own type
-  }
-
-  object FieldTransform {
-
-    // TODO move somewhere else
-    private implicit def firestoreCodec[A: FirestoreCodec]: FirestoreCodec[NonEmptyList[A]] =
-      new FirestoreCodec[NonEmptyList[A]] {
-        override def encode(as: NonEmptyList[A]): Value = FirestoreCodec[List[A]].encode(as.toList)
-
-        override def decode(value: Value): Either[FirestoreCodec.Error, NonEmptyList[A]] = {
-          FirestoreCodec[List[A]].decode(value).flatMap {
-            case head :: tail => Right(NonEmptyList(head, tail))
-            case _            => Left(FirestoreCodec.Error.GenericError("Expected a non-empty array"))
-          }
-        }
-      }
-
-    sealed trait ServerValueFieldTransform extends FieldTransform
-
-    sealed abstract class ValueFieldTransform[A: FirestoreCodec] extends FieldTransform {
-      def value: A
-
-      def firestoreValue: Value = FirestoreCodec[A].encode(value)
-    }
-
-    final case class SetToServerValue(fieldPath: String, serverValue: ServerValue) extends ServerValueFieldTransform
-
-    // TODO FirestoreData or Long/Double directly?
-    // TODO FieldPath
-    final case class Increment[A: FirestoreCodec](fieldPath: String, value: A) extends ValueFieldTransform[A]
-
-    final case class Maximum[A: FirestoreCodec](fieldPath: String, value: A) extends ValueFieldTransform[A]
-
-    final case class Minimum[A: FirestoreCodec](fieldPath: String, value: A) extends ValueFieldTransform[A]
-
-    final case class AppendMissingElements[A: FirestoreCodec](fieldPath: String, value: NonEmptyList[A])
-      extends ValueFieldTransform[NonEmptyList[A]]
-
-    final case class RemoveAllFromArray[A: FirestoreCodec](fieldPath: String, value: NonEmptyList[A])
-      extends ValueFieldTransform[NonEmptyList[A]]
-
-    implicit val encoder: Encoder[FieldTransform] = Encoder.instance { transform =>
-      import io.circe.syntax._
-
-      def constructJson(value: Json) =
-        JsonObject(
-          "fieldPath" -> transform.fieldPath.asJson,
-          transform.productPrefixLowerCamelCase -> value
-        ).asJson
-
-      transform match {
-        case SetToServerValue(_, serverValue)  => constructJson(serverValue.productPrefixUpperSnakeCase.asJson)
-        case transform: ValueFieldTransform[_] =>
-          constructJson {
-            transform.firestoreValue match {
-              case Value.Array(values) => JsonObject("values" -> values.map(_.firestoreJson).asJson).asJson // TODO think about it
-              case value               => value.firestoreJson.asJson
-            }
-          }
-      }
-    }
-
-  }
 
   implicit val encoder: Encoder.AsObject[Write] = Encoder.AsObject.instance {
     case Delete(reference, currentDocument)                                      =>

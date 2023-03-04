@@ -1,5 +1,6 @@
 package me.wojnowski.googlecloud4s.firestore.codec
 
+import cats.data.NonEmptyList
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec.Error
 
@@ -133,7 +134,7 @@ trait StandardCodecs {
 
     }
 
-  implicit def iterableCodec[A, C[_] <: IterableOnce[A]](
+  implicit def iterableCodec[A, C[A] <: IterableOnce[A]](
     implicit aCodec: FirestoreCodec[A],
     factory: Factory[A, C[A]]
   ): FirestoreCodec[C[A]] =
@@ -144,6 +145,18 @@ trait StandardCodecs {
         value.narrowCollect {
           case Value.Array(values) => values.toSeq.traverse(_.as[A]).map(factory.fromSpecific)
         }.flatten
+
+    }
+
+  implicit def nonEmptyListCodec[A: FirestoreCodec]: FirestoreCodec[NonEmptyList[A]] =
+    new FirestoreCodec[NonEmptyList[A]] {
+      override def encode(as: NonEmptyList[A]): Value = FirestoreCodec[List[A]].encode(as.toList)
+
+      override def decode(value: Value): Either[FirestoreCodec.Error, NonEmptyList[A]] =
+        FirestoreCodec[List[A]].decode(value).flatMap {
+          case head :: tail => Right(NonEmptyList(head, tail))
+          case _            => Left(FirestoreCodec.Error.GenericError("Expected a non-empty array"))
+        }
 
     }
 
