@@ -10,5 +10,7 @@ case class FieldPath(segments: NonEmptyList[String]) {
 object FieldPath {
   def apply(head: String, tail: String*): FieldPath = FieldPath(NonEmptyList(head, tail.toList))
 
+  def unsafe(s: String): FieldPath = FieldPath(NonEmptyList.fromListUnsafe(s.split('.').toList))
+
   implicit val encoder: Encoder[FieldPath] = Encoder[String].contramap(_.dotted)
 }

@@ -20,7 +20,7 @@ import java.time.Instant
 import fs2.Stream
 import me.wojnowski.googlecloud4s.auth.TokenProvider
 import me.wojnowski.googlecloud4s.firestore.Firestore._
-import me.wojnowski.googlecloud4s.firestore.FirestoreCodec.syntax._
+import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec.syntax._
 import cats.implicits._
 import eu.timepit.refined
 import eu.timepit.refined.api.Refined
@@ -34,6 +34,8 @@ import me.wojnowski.googlecloud4s.auth.Scopes
 import me.wojnowski.googlecloud4s.firestore.Firestore.FieldFilter.Operator
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
+import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
+import me.wojnowski.googlecloud4s.firestore.Value
 import sttp.model.StatusCode
 import sttp.model.Uri
 
@@ -302,10 +304,10 @@ object Firestore {
                                .response(asJson[List[HCursor]].getRight)
                            )
                            .flatMap { response =>
-                             type EitherExceptionOr[A] = Either[Exception, A]
+                             type EitherThrowableOr[A] = Either[Throwable, A]
 
                              Sync[F]
-                               .fromEither((response.body: List[HCursor]).traverse[EitherExceptionOr, (Reference.Document, Option[V])] {
+                               .fromEither((response.body: List[HCursor]).traverse[EitherThrowableOr, (Reference.Document, Option[V])] {
                                  hCursor => // TODO this is weird
                                    hCursor
                                      .downField("found")

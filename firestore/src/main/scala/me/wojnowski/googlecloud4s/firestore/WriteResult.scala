@@ -2,6 +2,7 @@ package me.wojnowski.googlecloud4s.firestore
 
 import cats.data.NonEmptyList
 import io.circe.Decoder
+import me.wojnowski.googlecloud4s.firestore.Value
 
 import java.time.Instant
 

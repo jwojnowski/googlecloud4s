@@ -10,6 +10,7 @@ import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Helpers.CollectionIdString
 import me.wojnowski.googlecloud4s.firestore.Helpers.ShortNameString
 import me.wojnowski.googlecloud4s.firestore.Write.FieldTransform
+import me.wojnowski.googlecloud4s.firestore.Value
 import munit.CatsEffectSuite
 import sttp.client3.httpclient.fs2.HttpClientFs2Backend
 
@@ -133,6 +134,7 @@ class BatchWriteTest extends CatsEffectSuite {
             Some(NonEmptyList.of(Value.Null))
           )
         )
+
         assertEquals(
           valueAF.map(_.toMapValue).flatMap(_.apply("anArrayOfStrings")).flatMap(_.as[List[String]].toOption),
           Some(List("B", "D", "G", "A", "C"))

@@ -29,7 +29,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
 
   val projectId: ProjectId = ProjectId("project-id")
 
-  import FirestoreCodec.circe._
+  import me.wojnowski.googlecloud4s.firestore.codec.circe._
 
   implicit val tokenProvider: TokenProvider[IO] = TokenProviderMock.instance
 

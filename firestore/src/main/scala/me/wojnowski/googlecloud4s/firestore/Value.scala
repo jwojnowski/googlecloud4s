@@ -1,147 +1,25 @@
 package me.wojnowski.googlecloud4s.firestore
 
-import cats.implicits._
 import io.circe.Decoder
 import io.circe.DecodingFailure
 import io.circe.Json
 import io.circe.JsonObject
-import io.circe.syntax._
 import me.wojnowski.googlecloud4s.firestore
-import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
+import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
 
 import java.time.Instant
 import java.util.Base64
 import scala.util.Try
-
-trait FirestoreCodec[A] {
-  def encode(a: A): Value
-
-  def decode(data: Value): Either[FirestoreCodec.Error, A]
-}
-
-object FirestoreCodec {
-  case class Error(cause: Throwable) extends Exception(cause) with Product with Serializable
-
-  object Error {
-    def apply(message: String): Error = Error(new Exception(message)) // TODO
-  }
-
-  def apply[A](implicit ev: FirestoreCodec[A]): FirestoreCodec[A] = ev
-
-  object syntax {
-
-    implicit class FirestoreCodecOps[A](a: A) {
-      def asFirestoreValue(implicit codec: FirestoreCodec[A]): Value = codec.encode(a)
-    }
-
-  }
-
-  object circe {
-    import io.circe.Decoder
-    import io.circe.Encoder
-    import io.circe.syntax._
-
-    implicit def circeFirestoreCodec[A: Encoder: Decoder]: FirestoreCodec[A] =
-      new FirestoreCodec[A] {
-
-        override def encode(a: A): Value = jsonToValue(a.asJson)
-
-        private def jsonToValue(json: Json): Value =
-          json.fold(
-            Value.Null,
-            Value.Boolean.apply,
-            number => number.toInt.map(Value.Integer.apply).getOrElse(Value.Double.apply(number.toDouble)),
-            Value.String.apply,
-            array => Value.Array(array.map(jsonToValue)),
-            jsonObject => Value.Map(jsonObject.toMap.fmap(jsonToValue))
-          )
-
-        override def decode(data: Value): Either[Error, A] =
-          data.plainJson.as[A].leftMap(Error.apply)
-
-      }
-
-  }
-
-  implicit val valueFirestoreCodec: FirestoreCodec[Value] = new FirestoreCodec[Value] {
-    override def encode(a: Value): Value = a
-
-    override def decode(data: Value): Either[Error, Value] = Right(data)
-  }
-
-  implicit val fieldsFirestoreCodec: FirestoreCodec[Fields] = new FirestoreCodec[Fields] {
-    override def encode(fields: Fields): Value = fields.toMapValue
-
-    override def decode(data: Value): Either[Error, Fields] =
-      data match {
-        case Value.Map(map) => Right(Fields(map))
-        case value          => Left(FirestoreCodec.Error(s"Expected ${Value.Map}, got ${value.productPrefix}"))
-      }
-
-  }
-
-  implicit val instant: FirestoreCodec[Instant] = new FirestoreCodec[Instant] {
-    override def encode(instant: Instant): Value = Value.Timestamp(instant)
-
-    override def decode(data: Value): Either[Error, Instant] =
-      data match {
-        case Value.Timestamp(instant) => Right(instant)
-        case value                    => Left(FirestoreCodec.Error(s"Expected ${Value.Timestamp}, got ${value.productPrefix}"))
-      }
-
-  }
-
-  // TODO why is iterable not working?
-  implicit def list[A: FirestoreCodec]: FirestoreCodec[List[A]] =
-    new FirestoreCodec[List[A]] {
-      override def encode(list: List[A]): Value = Value.Array(list.map(FirestoreCodec[A].encode))
-
-      override def decode(value: Value): Either[Error, List[A]] =
-        value match {
-          case Value.Array(values) => values.toList.traverse(_.as[A])
-          case _                   => Left(FirestoreCodec.Error(s"Expected ${Value.Map}, got ${value.productPrefix}"))
-        }
-
-    }
-
-  implicit val intFC: FirestoreCodec[Int] = new FirestoreCodec[Int] {
-    override def encode(a: Int): Value = Value.Integer(a)
-
-    override def decode(data: Value): Either[Error, Int] =
-      data.narrowCollect {
-        case Value.Integer(value) => value
-      }
-
-  }
-
-  implicit val stringFC: FirestoreCodec[String] = new FirestoreCodec[String] {
-    override def encode(a: String): Value = Value.String(a)
-
-    override def decode(data: Value): Either[Error, String] =
-      data.narrowCollect {
-        case Value.String(value) => value
-      }
-
-  }
-
-}
+import cats.syntax.all._
+import io.circe.syntax.EncoderOps
 
 sealed abstract class Value(val jsonKey: String) extends Product with Serializable {
   def as[A](implicit codec: FirestoreCodec[A]): Either[FirestoreCodec.Error, A] = codec.decode(this)
 
-  // TODO maybe it is possible without PF and the hint?
-  def narrowCollect[A](
-    partialFunction: PartialFunction[Value, A],
-    expectedTypeHint: Option[Product] = None
-  ): Either[FirestoreCodec.Error, A] =
+  def narrowCollect[A](partialFunction: PartialFunction[Value, A]): Either[FirestoreCodec.Error, A] =
     partialFunction
       .unapply(this)
-      .toRight(
-        expectedTypeHint.fold(s"Unexpected value of type [$productPrefix]")(typeHint =>
-          s"Expected value of type [${typeHint.productPrefix}], found: [$productPrefix]"
-        )
-      )
-      .leftMap(FirestoreCodec.Error.apply)
+      .toRight(FirestoreCodec.Error.UnexpectedValue(this))
 
   def asMap: Option[Value.Map] =
     this match {
@@ -168,7 +46,7 @@ object Value {
   case class Bytes(value: scala.Array[Byte]) extends Value("bytesValue")
   case class Reference(value: firestore.Reference.Document) extends Value("referenceValue")
   case class GeoPoint(latitude: scala.Double, longitude: scala.Double) extends Value("geoPointValue")
-  case class Array(value: Seq[Value]) extends Value("arrayValue")
+  case class Array(value: Iterable[Value]) extends Value("arrayValue")
 
   object Array {
     def apply[V <: Value](head: V, tail: V*): Array = Array(head +: tail)

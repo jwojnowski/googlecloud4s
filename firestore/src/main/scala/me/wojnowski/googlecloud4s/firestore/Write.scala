@@ -7,6 +7,8 @@ import io.circe.JsonObject
 import me.wojnowski.googlecloud4s.firestore.ProductOps.ProductNameToSnakeCase
 import io.circe.syntax._
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
+import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
+import me.wojnowski.googlecloud4s.firestore.Value
 
 sealed trait Write extends Product with Serializable {
   def currentDocument: Option[Precondition]
@@ -39,9 +41,14 @@ object Write {
     // TODO move somewhere else
     private implicit def firestoreCodec[A: FirestoreCodec]: FirestoreCodec[NonEmptyList[A]] =
       new FirestoreCodec[NonEmptyList[A]] {
-        override def encode(as: NonEmptyList[A]): Value = Value.Array(as.map(FirestoreCodec[A].encode).toList)
+        override def encode(as: NonEmptyList[A]): Value = FirestoreCodec[List[A]].encode(as.toList)
 
-        override def decode(data: Value): Either[FirestoreCodec.Error, NonEmptyList[A]] = ??? // TODO implement
+        override def decode(value: Value): Either[FirestoreCodec.Error, NonEmptyList[A]] = {
+          FirestoreCodec[List[A]].decode(value).flatMap {
+            case head :: tail => Right(NonEmptyList(head, tail))
+            case _            => Left(FirestoreCodec.Error.GenericError("Expected a non-empty array"))
+          }
+        }
       }
 
     sealed trait ServerValueFieldTransform extends FieldTransform

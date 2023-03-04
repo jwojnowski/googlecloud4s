@@ -58,7 +58,7 @@ Both `put` and `get` operations use `fs2.Stream[F, Byte]` for data transfer.
 ### Encoding/Decoding
 `FirestoreCodec` is a type class used to define encoders and decoders. It can be written manually, or derived by importing:
 ```scala
-import me.wojnowski.googlecloud4s.firestore.FirestoreCodec.circe._
+import me.wojnowski.googlecloud4s.firestore.circe._
 ```
 
 ## Authorisation

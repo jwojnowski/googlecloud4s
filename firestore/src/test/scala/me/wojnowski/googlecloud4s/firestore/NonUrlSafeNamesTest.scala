@@ -25,7 +25,7 @@ class NonUrlSafeNamesTest extends CatsEffectSuite with TestContainerForAll with 
 
   val projectId: ProjectId = ProjectId("project-id")
 
-  import FirestoreCodec.circe._
+  import me.wojnowski.googlecloud4s.firestore.codec.circe._
 
   implicit val tokenProvider: TokenProvider[IO] = TokenProviderMock.instance
 

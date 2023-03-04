@@ -11,8 +11,10 @@ abstract sealed case class CollectionId(value: String)
 object CollectionId {
   private[firestore] val parser: Parser[CollectionId] = idParser.map(new CollectionId(_) {})
 
-  def parse(rawId: String): Either[String, CollectionId] =
-    parser.between(Parser.start, Parser.end).parseAll(rawId).leftMap(_.toString)
+  def parse(raw: String): Either[String, CollectionId] =
+    parser.between(Parser.start, Parser.end).parseAll(raw).leftMap(_.toString)
+
+  def unsafe(raw: String): CollectionId = parse(raw).toOption.getOrElse(throw new ParsingError(s"[$raw] is not a valid collection ID"))
 
   implicit val encoder: Encoder[CollectionId] = Encoder[String].contramap(_.value)
   implicit val decoder: Decoder[CollectionId] = Decoder[String].emap(CollectionId.parse)

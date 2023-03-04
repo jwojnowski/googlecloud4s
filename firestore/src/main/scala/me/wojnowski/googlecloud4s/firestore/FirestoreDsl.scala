@@ -6,6 +6,7 @@ import fs2.Stream
 import Firestore.Error
 import cats.data.NonEmptyList
 import cats.data.NonEmptyMap
+import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
 
 object FirestoreDsl {
 

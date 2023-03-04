@@ -28,7 +28,7 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
 
   val collection = Reference.Root(projectId).collection("collection-a".toCollectionId)
 
-  import FirestoreCodec.circe._
+  import me.wojnowski.googlecloud4s.firestore.codec.circe._
 
   test("updates fail after exhausting configured attempts") {
     withContainerUri { uri =>

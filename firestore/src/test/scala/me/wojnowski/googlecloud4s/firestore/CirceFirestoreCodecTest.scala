@@ -2,7 +2,8 @@ package me.wojnowski.googlecloud4s.firestore
 
 import io.circe.Decoder
 import io.circe.Encoder
-import me.wojnowski.googlecloud4s.firestore.FirestoreCodec.circe._
+import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
+import me.wojnowski.googlecloud4s.firestore.codec.circe._
 import munit.FunSuite
 
 class CirceFirestoreCodecTest extends FunSuite {
