@@ -353,7 +353,7 @@ object Firestore {
                             case Left(error)               =>
                               Error
                                 .UnexpectedResponse(
-                                  s"Couldn't decode streaming response due to [${error.getMessage}]"
+                                  s"Couldn't decode batch write response due to [${error.getMessage}]"
                                 )
                                 .raiseError[F, BatchWriteResponse]
                           }

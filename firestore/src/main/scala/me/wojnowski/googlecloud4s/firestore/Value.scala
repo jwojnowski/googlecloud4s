@@ -85,13 +85,22 @@ object Value {
             value.hcursor.downField("longitude").as[scala.Double]
           ).mapN((latitude, longitude) => GeoPoint(latitude, longitude)).leftMap(_.getMessage)
         case List(("arrayValue", value))     =>
-          value.hcursor.downField("values").as[List[Json]].leftMap(_.getMessage).flatMap(_.traverse(fromFirestoreJson)).map(Array.apply)
-        case List(("mapValue", value))       =>
-          value.hcursor.downField("fields").as[scala.collection.immutable.Map[java.lang.String, Json]].leftMap(_.getMessage).flatMap {
-            _.toList
-              .traverse { case (fieldName, fieldValue) => fromFirestoreJson(fieldValue).map(fieldName -> _) }
-              .map(fields => Map(fields.toMap))
+          value.hcursor.downField("values").success match {
+            case Some(values) => values.as[List[Json]].leftMap(_.getMessage).flatMap(_.traverse(fromFirestoreJson)).map(Array.apply)
+            case None         => Right(Array())
           }
+
+        case List(("mapValue", value))       =>
+          value.hcursor.downField("fields").success match {
+            case Some(fields) =>
+              fields.as[scala.collection.immutable.Map[java.lang.String, Json]].leftMap(_.getMessage).flatMap {
+                _.toList
+                  .traverse { case (fieldName, fieldValue) => fromFirestoreJson(fieldValue).map(fieldName -> _) }
+                  .map(fields => Map(fields.toMap))
+              }
+            case None         => Right(Map())
+          }
+
         case _                               =>
           Left("Could not decode value as any of known types")
       }

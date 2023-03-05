@@ -438,7 +438,6 @@ class ValueTest extends CatsEffectSuite {
       parseJson("""
         {
           "arrayValue": {
-            "values": []
           }
         }
         """)
@@ -524,7 +523,6 @@ class ValueTest extends CatsEffectSuite {
       parseJson("""
         {
           "mapValue": {
-            "fields": {}
           }
         }
         """)
