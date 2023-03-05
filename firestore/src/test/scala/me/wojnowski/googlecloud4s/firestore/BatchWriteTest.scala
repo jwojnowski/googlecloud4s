@@ -44,7 +44,6 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
         _               <- firestore.set(documentBA, document)
         _               <- firestore.set(documentBB, document)
         _               <- firestore.batchWrite(NonEmptyList.of(Write.Delete(documentAB), Write.Delete(documentBA)))
-        _               <- Async[IO].sleep(1.seconds)
         collectionADocs <- firestore.streamLogFailures[Fields](collectionA).compile.toList
         collectionBDocs <- firestore.streamLogFailures[Fields](collectionB).compile.toList
       } yield {
@@ -64,7 +63,6 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
         _        <- firestore.set(documentAE, document)
         _        <- firestore.set(documentAF, document)
         _        <- firestore.set(documentAG, document)
-        _        <- Async[IO].sleep(1.seconds)
         response <- firestore.batchWrite(
                       NonEmptyList.of(
                         Write.DocumentTransform(
@@ -105,7 +103,6 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
                         )
                       )
                     )
-        _        <- Async[IO].sleep(1.seconds)
         now      <- Async[IO].realTimeInstant
         valueAF  <- firestore.get[Fields](documentAF)
         valueAG  <- firestore.get[Fields](documentAG)
