@@ -17,6 +17,8 @@ object DocumentId {
       .parseAll(raw)
       .leftMap(error => new ParsingError(error.toString))
 
+  def unsafe(raw: String): DocumentId = parse(raw).toOption.getOrElse(throw new ParsingError(s"[$raw] is not a valid document ID"))
+
   type ParsingError = IllegalArgumentException
 
   implicit val show: Show[DocumentId] = Show.fromToString

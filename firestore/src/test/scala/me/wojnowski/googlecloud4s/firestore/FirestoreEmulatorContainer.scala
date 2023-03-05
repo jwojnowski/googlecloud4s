@@ -6,8 +6,10 @@ import me.wojnowski.googlecloud4s.TestContainerUtils
 import org.testcontainers.containers.{FirestoreEmulatorContainer => JavaFirestoreEmulatorContainer}
 
 case class FirestoreEmulatorContainer() extends SingleContainer[JavaFirestoreEmulatorContainer] {
+
   override val container: JavaFirestoreEmulatorContainer =
     new JavaFirestoreEmulatorContainer(TestContainerUtils.dockerImage)
+      .withCommand("/bin/sh", "-c", "gcloud emulators firestore start --host-port 0.0.0.0:8080")
 
   def uri: String = "http://" + container.getEmulatorEndpoint
 

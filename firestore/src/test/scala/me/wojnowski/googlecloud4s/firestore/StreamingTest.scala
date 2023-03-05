@@ -29,7 +29,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
 
   val projectId: ProjectId = ProjectId("project-id")
 
-  import FirestoreCodec.circe._
+  import me.wojnowski.googlecloud4s.firestore.codec.circe._
 
   implicit val tokenProvider: TokenProvider[IO] = TokenProviderMock.instance
 
@@ -50,8 +50,8 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
                        .stream[Json](
                          collection,
                          filters = List(
-                           FieldFilter("foo", "14", FieldFilter.Operator.>),
-                           FieldFilter("foo", "16", FieldFilter.Operator.<)
+                           FieldFilter("foo", FieldFilter.Operator.>, "14"),
+                           FieldFilter("foo", FieldFilter.Operator.<, "16")
                          ),
                          orderBy = List(
                            Order("foo", Order.Direction.Descending)

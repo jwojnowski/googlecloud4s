@@ -26,7 +26,7 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
   val collectionA = Reference.Root(projectId).collection("collection-a".toCollectionId)
   val collectionB = Reference.Root(projectId).collection("collection-b".toCollectionId)
 
-  import FirestoreCodec.circe._
+  import me.wojnowski.googlecloud4s.firestore.codec.circe._
 
   val documentAName = "document-a".toDocumentId
   val documentCName = "document-c".toDocumentId

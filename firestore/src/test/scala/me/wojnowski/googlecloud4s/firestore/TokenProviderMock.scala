@@ -16,7 +16,7 @@ object TokenProviderMock {
     override def getAccessToken(scopes: Scopes): IO[AccessToken] =
       IO.pure(
         AccessToken(
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dnZWRJbkFzIjoiYWRtaW4iLCJpYXQiOjE0MjI3Nzk2Mzh9.gzSraSYS8EXBxLN_oWnFSRgCzcmJmMjLiuyu5CSpyHI",
+          "owner",
           Scopes("test"),
           Instant.EPOCH
         )

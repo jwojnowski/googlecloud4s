@@ -7,6 +7,7 @@ import cats.parse.Parser
 import cats.parse.Parser0
 import cats.syntax.all._
 import io.circe.Decoder
+import io.circe.Encoder
 import me.wojnowski.googlecloud4s.ProjectId
 
 sealed trait Reference extends Product with Serializable {
@@ -57,6 +58,9 @@ object Reference {
 
     implicit val documentReferenceDecoder: Decoder[Reference.Document] =
       Decoder[String].emap(Reference.Document.parse(_).leftMap(_.getMessage))
+
+    implicit val documentReferenceEncoder: Encoder[Reference.Document] =
+      Encoder[String].contramap(_.full)
 
     implicit val ordering: Ordering[Reference.Document] = Ordering.by(_.full)
 
