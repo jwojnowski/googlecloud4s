@@ -47,33 +47,32 @@ object CredentialsTokenProvider {
           _        <- Logger[F].debug(s"Getting fresh identity token for audience [$audience]...")
           issuedAt <- Clock[F].realTimeInstant
           expiresAt = issuedAt.plusSeconds(60 * 60)
-          token    <-
-            sttpBackend
-              .send(
-                createRequest(credentials.tokenUri, issuedAt, expiresAt, Map("target_audience" -> audience.value.toList.mkString(" ")))
-              )
-              .adaptError {
-                case NonFatal(t) => CommunicationError(t)
-              }
-              .flatMap { response =>
-                response.body match {
-                  case Right(json)     =>
-                    Sync[F]
-                      .fromEither(json.hcursor.downField("id_token").as[String])
-                      .adaptError {
-                        case NonFatal(error) =>
-                          UnexpectedResponse(s"Couldn't decode response due to ${error.getMessage}")
-                      }
-                      .map { token =>
-                        IdentityToken(token, audience, expiresAt)
-                      }
-                  case Left(throwable) =>
-                    logger.error(throwable)(
-                      s"Failed to get identity token for audience [$audience] based on credentials, HTTP status: ${response.code.code}, response: [${response.body}]"
-                    ) *>
-                      UnexpectedResponse(s"Status: ${response.code.code}").raiseError[F, IdentityToken]
-                }
-              }
+          token    <- sttpBackend
+                        .send(
+                          createRequest(credentials.tokenUri, issuedAt, expiresAt, Map("target_audience" -> audience.value))
+                        )
+                        .adaptError {
+                          case NonFatal(t) => CommunicationError(t)
+                        }
+                        .flatMap { response =>
+                          response.body match {
+                            case Right(json)     =>
+                              Sync[F]
+                                .fromEither(json.hcursor.downField("id_token").as[String])
+                                .adaptError {
+                                  case NonFatal(error) =>
+                                    UnexpectedResponse(s"Couldn't decode response due to ${error.getMessage}")
+                                }
+                                .map { token =>
+                                  IdentityToken(token, audience, expiresAt)
+                                }
+                            case Left(throwable) =>
+                              logger.error(throwable)(
+                                s"Failed to get identity token for audience [$audience] based on credentials, HTTP status: ${response.code.code}, response: [${response.body}]"
+                              ) *>
+                                UnexpectedResponse(s"Status: ${response.code.code}").raiseError[F, IdentityToken]
+                          }
+                        }
         } yield token
       }
         .flatTap { _ =>
