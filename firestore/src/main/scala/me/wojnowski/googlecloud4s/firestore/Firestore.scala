@@ -52,6 +52,9 @@ trait Firestore[F[_]] {
   /** @return old version, the last before successfully applying f */
   def update[V: FirestoreCodec](reference: Reference.Document, f: V => V): F[Option[V]]
 
+  /** @return old version, the last before successfully applying f */
+  def updateM[V: FirestoreCodec](reference: Reference.Document, f: V => F[V]): F[Option[V]]
+
   def batchGet[V: FirestoreCodec](paths: NonEmptyList[Reference.Document]): F[NonEmptyMap[Reference.Document, Option[V]]]
 
   def batchWrite(writes: NonEmptyList[Write], labels: Map[String, String] = Map.empty): F[BatchWriteResponse]
@@ -383,14 +386,18 @@ object Firestore {
                 )
             }
 
-      override def update[V: FirestoreCodec](reference: Reference.Document, f: V => V): F[Option[V]] = {
+      /** @return old version, the last before successfully applying f */
+      override def update[V: FirestoreCodec](reference: Reference.Document, f: V => V): F[Option[V]] = updateM(reference, v => f(v).pure[F])
+
+      override def updateM[V: FirestoreCodec](reference: Reference.Document, f: V => F[V]): F[Option[V]] = {
         def attemptUpdate(attemptsLeft: Int): F[Option[V]] =
           getDocument(reference)
             .flatMap {
               _.traverse { document =>
                 for {
                   decodedDocument <- Sync[F].fromEither(document.as[V].leftMap(Error.DecodingFailure.apply))
-                  _               <- setWithOptimisticLocking(reference, f(decodedDocument), Some(document.updateTime))
+                  updatedDocument <- f(decodedDocument)
+                  _               <- setWithOptimisticLocking(reference, updatedDocument, Some(document.updateTime))
                 } yield decodedDocument
               }
             }

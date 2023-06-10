@@ -21,6 +21,12 @@ sealed abstract class Value(val jsonKey: String) extends Product with Serializab
       .unapply(this)
       .toRight(FirestoreCodec.Error.UnexpectedValue(this))
 
+  def narrowCollectAttempt[A](partialFunction: PartialFunction[Value, Either[FirestoreCodec.Error, A]]): Either[FirestoreCodec.Error, A] =
+    partialFunction
+      .unapply(this)
+      .toRight(FirestoreCodec.Error.UnexpectedValue(this))
+      .flatten
+
   def asMap: Option[Value.Map] =
     this match {
       case map: Value.Map => Some(map)

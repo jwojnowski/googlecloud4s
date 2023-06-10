@@ -1,5 +1,6 @@
 package me.wojnowski.googlecloud4s.firestore.codec
 
+import cats.Invariant
 import me.wojnowski.googlecloud4s.firestore.Value
 
 import scala.util.control.NoStackTrace
@@ -24,11 +25,31 @@ object FirestoreCodec extends StandardCodecs {
 
   def apply[A](implicit ev: FirestoreCodec[A]): FirestoreCodec[A] = ev
 
+  def instance[A](encodeFunction: A => Value, decodeFunction: Value => Either[Error, A]): FirestoreCodec[A] =
+    new FirestoreCodec[A] {
+      override def encode(a: A): Value = encodeFunction(a)
+
+      override def decode(value: Value): Either[Error, A] = decodeFunction(value)
+    }
+
   object syntax {
 
     implicit class FirestoreCodecOps[A](a: A) {
       def asFirestoreValue(implicit codec: FirestoreCodec[A]): Value = codec.encode(a)
     }
+
+  }
+
+  implicit val invariant: Invariant[FirestoreCodec] = new Invariant[FirestoreCodec] {
+
+    override def imap[A, B](fa: FirestoreCodec[A])(f: A => B)(g: B => A): FirestoreCodec[B] =
+      new FirestoreCodec[B] {
+        override def encode(b: B): Value =
+          fa.encode(g(b))
+
+        override def decode(value: Value): Either[FirestoreCodec.Error, B] =
+          fa.decode(value).map(f)
+      }
 
   }
 
