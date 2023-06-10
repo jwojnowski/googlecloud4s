@@ -18,7 +18,7 @@ class FirestoreCodecTest extends FunSuite {
     val results =
       List(
         FirestoreCodec[Boolean].encode(true),
-        FirestoreCodec[Int].encode(42),
+        FirestoreCodec[Long].encode(-2147483663L),
         FirestoreCodec[Double].encode(1.25),
         FirestoreCodec[Instant].encode(instant),
         FirestoreCodec[String].encode("foo"),
@@ -33,7 +33,7 @@ class FirestoreCodecTest extends FunSuite {
     val expected =
       List(
         Value.Boolean(true),
-        Value.Integer(42),
+        Value.Integer(-2147483663L),
         Value.Double(1.25),
         Value.Timestamp(Instant.parse("2004-05-06T07:08:09.101112Z")),
         Value.String("foo"),
@@ -55,7 +55,29 @@ class FirestoreCodecTest extends FunSuite {
     assertEquals(result, expected)
   }
 
-  test("decoding int") {
+  test("decoding int (within Int)") {
+    val result = FirestoreCodec[Int].decode(Value.Integer(42))
+    val expected = Right(42)
+    assertEquals(result, expected)
+  }
+
+  test("decoding int (larger than Int.MaxValue)") {
+    val result = FirestoreCodec[Int].decode(Value.Integer(Int.MaxValue.toLong + 16))
+    assert(result.isLeft)
+  }
+
+  test("decoding int (smaller than Int.MinValue)") {
+    val result = FirestoreCodec[Int].decode(Value.Integer(Int.MinValue.toLong - 16))
+    assert(result.isLeft)
+  }
+
+  test("decoding long") {
+    val result = FirestoreCodec[Long].decode(Value.Integer(2147483663L))
+    val expected = Right(2147483663L)
+    assertEquals(result, expected)
+  }
+
+  test("decoding long as long") {
     val result = FirestoreCodec[Int].decode(Value.Integer(42))
     val expected = Right(42)
     assertEquals(result, expected)
