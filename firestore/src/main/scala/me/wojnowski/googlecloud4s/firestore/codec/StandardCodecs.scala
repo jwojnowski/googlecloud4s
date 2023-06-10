@@ -60,11 +60,21 @@ trait StandardCodecs {
   }
 
   implicit val intCodec: FirestoreCodec[Int] = new FirestoreCodec[Int] {
-    override def encode(int: Int): Value = Value.Integer(int)
+    override def encode(int: Int): Value = Value.Integer(int.toLong)
 
     override def decode(value: Value): Either[Error, Int] =
       value.narrowCollect {
-        case Value.Integer(int) => int
+        case Value.Integer(long) if long >= Int.MinValue && long <= Int.MaxValue => long.toInt
+      }
+
+  }
+
+  implicit val longCodec: FirestoreCodec[Long] = new FirestoreCodec[Long] {
+    override def encode(int: Long): Value = Value.Integer(int)
+
+    override def decode(value: Value): Either[Error, Long] =
+      value.narrowCollect {
+        case Value.Integer(long) => long
       }
 
   }

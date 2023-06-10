@@ -20,7 +20,7 @@ trait CirceCodecs {
         json.fold(
           Value.Null,
           Value.Boolean.apply,
-          number => number.toInt.map(Value.Integer.apply).getOrElse(Value.Double.apply(number.toDouble)),
+          number => number.toLong.map(Value.Integer.apply).getOrElse(Value.Double.apply(number.toDouble)),
           Value.String.apply,
           array => Value.Array(array.map(jsonToValue)),
           jsonObject => Value.Map(jsonObject.toMap.fmap(jsonToValue))

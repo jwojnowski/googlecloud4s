@@ -314,12 +314,12 @@ class ValueTest extends CatsEffectSuite {
       // language=JSON
       parseJson("""
         {
-          "integerValue": 42
+          "integerValue": 2147483663
         }
         """)
 
     val result = Value.fromFirestoreJson(rawJson)
-    val expected = Value.Integer(42)
+    val expected = Value.Integer(2147483663L)
 
     assertEquals(result, Right(expected))
   }

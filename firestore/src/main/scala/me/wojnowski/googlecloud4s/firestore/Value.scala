@@ -21,6 +21,12 @@ sealed abstract class Value(val jsonKey: String) extends Product with Serializab
       .unapply(this)
       .toRight(FirestoreCodec.Error.UnexpectedValue(this))
 
+  def narrowCollectAttempt[A](partialFunction: PartialFunction[Value, Either[FirestoreCodec.Error, A]]): Either[FirestoreCodec.Error, A] =
+    partialFunction
+      .unapply(this)
+      .toRight(FirestoreCodec.Error.UnexpectedValue(this))
+      .flatten
+
   def asMap: Option[Value.Map] =
     this match {
       case map: Value.Map => Some(map)
@@ -39,7 +45,7 @@ object Value {
 
   case object Null extends Value("nullValue")
   case class Boolean(value: scala.Boolean) extends Value("booleanValue")
-  case class Integer(value: Int) extends Value("integerValue")
+  case class Integer(value: Long) extends Value("integerValue")
   case class Double(value: scala.Double) extends Value("doubleValue")
   case class Timestamp(value: Instant) extends Value("timestampValue")
   case class String(value: java.lang.String) extends Value("stringValue")
@@ -67,7 +73,7 @@ object Value {
       jsonObject.toList match {
         case List(("nullValue", Json.Null))  => Right(Value.Null)
         case List(("booleanValue", value))   => value.as[scala.Boolean].leftMap(_.getMessage).map(Boolean.apply)
-        case List(("integerValue", value))   => value.as[Int].leftMap(_.getMessage).map(Integer.apply)
+        case List(("integerValue", value))   => value.as[Long].leftMap(_.getMessage).map(Integer.apply)
         case List(("doubleValue", value))    => value.as[scala.Double].leftMap(_.getMessage).map(Double.apply)
         case List(("timestampValue", value)) => value.as[Instant].leftMap(_.getMessage).map(Timestamp.apply)
         case List(("stringValue", value))    => value.as[java.lang.String].leftMap(_.getMessage).map(String.apply)

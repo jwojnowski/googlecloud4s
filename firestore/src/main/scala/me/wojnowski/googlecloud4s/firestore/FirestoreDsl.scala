@@ -76,6 +76,7 @@ object FirestoreDsl {
     def get[V: FirestoreCodec]: F[Option[V]] = firestore.get(document)
 
     def update[V: FirestoreCodec](f: V => V): F[Option[V]] = firestore.update(document, f)
+    def updateM[V: FirestoreCodec](f: V => F[V]): F[Option[V]] = firestore.updateM(document, f)
 
     def delete: F[Unit] = firestore.delete(document)
   }
