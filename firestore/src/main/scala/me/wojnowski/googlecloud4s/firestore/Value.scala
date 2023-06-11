@@ -80,7 +80,7 @@ object Value {
         case List(("bytesValue", value))     =>
           value
             .as[java.lang.String]
-            .flatMap(string => Try(Base64.getUrlDecoder.decode(string)).toEither)
+            .flatMap(string => Try(Base64.getDecoder.decode(string)).toEither)
             .leftMap(_.getMessage)
             .map(Bytes.apply)
         case List(("referenceValue", value)) =>
@@ -122,7 +122,7 @@ object Value {
         case Double(value)                 => value.asJson
         case Timestamp(value)              => value.asJson
         case String(value)                 => value.asJson
-        case Bytes(value)                  => new java.lang.String(Base64.getUrlEncoder.encode(value)).asJson
+        case Bytes(value)                  => new java.lang.String(Base64.getEncoder.encode(value)).asJson
         case Reference(value)              => value.full.asJson
         case GeoPoint(latitude, longitude) =>
           JsonObject(
