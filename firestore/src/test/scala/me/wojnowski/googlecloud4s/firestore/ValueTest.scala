@@ -13,7 +13,7 @@ import java.time.Instant
 class ValueTest extends CatsEffectSuite {
 
   private val reference =
-    Reference.Root(ProjectId("project-id")) / "collection-a".toCollectionId / "document-x".toDocumentId /
+    Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id")) / "collection-a".toCollectionId / "document-x".toDocumentId /
       "collection-b".toCollectionId / "document-y".toDocumentId
 
   test("Encoding boolean") {
@@ -100,7 +100,7 @@ class ValueTest extends CatsEffectSuite {
       // language=JSON
       parseJson("""
         {
-          "referenceValue": "projects/project-id/databases/(default)/documents/collection-a/document-x/collection-b/document-y"
+          "referenceValue": "projects/project-id/databases/database-id/documents/collection-a/document-x/collection-b/document-y"
         }
         """)
 
@@ -389,7 +389,7 @@ class ValueTest extends CatsEffectSuite {
       // language=JSON
       parseJson("""
         {
-          "referenceValue": "projects/project-id/databases/(default)/documents/collection-a/document-x/collection-b/document-y"
+          "referenceValue": "projects/project-id/databases/database-id/documents/collection-a/document-x/collection-b/document-y"
         }
         """)
 

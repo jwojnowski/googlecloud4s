@@ -7,11 +7,12 @@ import io.circe.JsonObject
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 
 sealed trait Write extends Product with Serializable {
+  def documentReference: Reference.Document
   def currentDocument: Option[Precondition]
 }
 
 object Write {
-  final case class Delete(document: Reference.Document, currentDocument: Option[Precondition] = None) extends Write
+  final case class Delete(documentReference: Reference.Document, currentDocument: Option[Precondition] = None) extends Write
 
   final case class Update(
     documentReference: Reference.Document,

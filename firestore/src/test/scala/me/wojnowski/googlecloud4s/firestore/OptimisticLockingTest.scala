@@ -25,8 +25,9 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
   implicit val tokenProvider: TokenProvider[IO] = TokenProviderMock.instance
 
   val projectId: ProjectId = ProjectId("project-id")
+  val databaseId: DatabaseId = DatabaseId.unsafe("database-id")
 
-  val collection = Reference.Root(projectId).collection("collection-a".toCollectionId)
+  val collection = Reference.Root(projectId, databaseId).collection("collection-a".toCollectionId)
 
   import me.wojnowski.googlecloud4s.firestore.codec.circe._
 
@@ -37,7 +38,7 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
 
         val attempts = 3
 
-        val firestore = Firestore.instance[IO](recordingBackend, projectId, uri.some, optimisticLockingAttempts = attempts)
+        val firestore = Firestore.instance[IO](recordingBackend, projectId, databaseId, uri.some, optimisticLockingAttempts = attempts)
 
         for {
           path   <- firestore.add(collection, TestDocumentWithCounter(counter = 0))

@@ -36,6 +36,7 @@ import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
 import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
 import me.wojnowski.googlecloud4s.firestore.Value
+import sttp.model.Header
 import sttp.model.StatusCode
 import sttp.model.Uri
 
@@ -80,8 +81,6 @@ trait Firestore[F[_]] {
 }
 
 object Firestore {
-  private[firestore] val defaultDatabase = "(default)"
-
   def apply[F[_]](implicit ev: Firestore[F]): Firestore[F] = ev
 
   sealed trait Error extends ProductSerializableNoStacktrace
@@ -183,6 +182,7 @@ object Firestore {
   def instance[F[_]: Sync: TokenProvider](
     sttpBackend: SttpBackend[F, Any],
     projectId: ProjectId,
+    databaseId: DatabaseId = DatabaseId.default,
     uriOverride: Option[String Refined refined.string.Uri] = None,
     optimisticLockingAttempts: Int = 16
   ): Firestore[F] =
@@ -195,7 +195,7 @@ object Firestore {
       val baseUri = uriOverride.fold(uri"https://firestore.googleapis.com")(u => uri"$u")
       val scope = Scopes("https://www.googleapis.com/auth/datastore")
 
-      override def rootReference: Reference.Root = Reference.Root(projectId)
+      override def rootReference: Reference.Root = Reference.Root(projectId, databaseId)
 
       private def getToken: F[AccessToken] =
         TokenProvider[F].getAccessToken(scope).adaptError {
@@ -218,6 +218,7 @@ object Firestore {
                          .send {
                            basicRequest
                              .header("Authorization", s"Bearer ${token.value}")
+                             .header(createGoogleRequestParamsHeader(collection))
                              .post(createUri(collection))
                              .body(JsonObject("fields" -> fields.asJson))
                              .response(asJson[Json])
@@ -256,6 +257,7 @@ object Firestore {
                              .send {
                                basicRequest
                                  .header("Authorization", s"Bearer ${token.value}")
+                                 .header(createGoogleRequestParamsHeader(reference))
                                  .patch(
                                    createUri(reference).addParams(
                                      Map() ++ maybeUpdateTime.map(updateTime => "currentDocument.updateTime" -> updateTime.toString)
@@ -295,6 +297,7 @@ object Firestore {
                            .send(
                              basicRequest
                                .header("Authorization", s"Bearer ${token.value}")
+                               .header(createGoogleRequestParamsHeader(paths.head))
                                .post(createUri(rootReference, ":batchGet"))
                                .body(
                                  JsonObject(
@@ -345,6 +348,7 @@ object Firestore {
                         .send {
                           basicRequest
                             .header("Authorization", s"Bearer ${token.value}")
+                            .header(createGoogleRequestParamsHeader(writes.head.documentReference))
                             .post(createUri(rootReference, ":batchWrite"))
                             .body(JsonObject("writes" -> writes.asJson, "labels" -> labels.asJson))
                             .response(asJson[BatchWriteResponse])
@@ -429,6 +433,7 @@ object Firestore {
                       .send(
                         basicRequest
                           .header("Authorization", s"Bearer ${token.value}")
+                          .header(createGoogleRequestParamsHeader(reference))
                           .get(createUri(reference))
                           .response(asJson[FirestoreDocument])
                       )
@@ -540,6 +545,7 @@ object Firestore {
             token  <- getToken
             request = basicRequest
                         .header("Authorization", s"Bearer ${token.value}")
+                        .header(createGoogleRequestParamsHeader(collection))
                         .post(createUri(collection.parent, ":runQuery"))
                         .body(createRequestBody)
                         .response(asJson[Json])
@@ -605,6 +611,7 @@ object Firestore {
                       .send {
                         basicRequest
                           .header("Authorization", s"Bearer ${token.value}")
+                          .header(createGoogleRequestParamsHeader(reference))
                           .delete(createUri(reference))
                       }
                       .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
@@ -637,6 +644,9 @@ object Firestore {
 
         baseUri.addPath("v1").addPath(segmentsWithSuffix.toList)
       }
+
+      private def createGoogleRequestParamsHeader(reference: Reference) =
+        Header("x-goog-request-params", s"project_id=${reference.root.projectId.value}&database_id=${reference.root.databaseId.value}")
 
     }
 

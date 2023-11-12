@@ -21,13 +21,14 @@ trait FirestoreTestContainer extends TestContainerForAll with TestContainerUtils
   implicit val tokenProvider: TokenProvider[IO] = TokenProviderMock.instance
 
   val projectId: ProjectId = ProjectId("project-id")
+  val databaseId: DatabaseId = DatabaseId.unsafe("database-id")
 
   override def extractUri: FirestoreEmulatorContainer => String = _.uri
 
   def withFirestore(f: Firestore[IO] => IO[Unit]): IO[Unit] =
     withContainerUri { uri =>
       withSttpBackend { backend =>
-        f(Firestore.instance[IO](backend, projectId, uri.some))
+        f(Firestore.instance[IO](backend, projectId, databaseId, uri.some))
       }
     }
 

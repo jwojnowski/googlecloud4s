@@ -10,7 +10,8 @@ import me.wojnowski.googlecloud4s.firestore.Helpers.CollectionIdString
 import me.wojnowski.googlecloud4s.firestore.Helpers.ShortNameString
 
 class FirestoreCodecTest extends FunSuite {
-  val reference = Reference.Root(ProjectId("project-id")) / "collection".toCollectionId / "document".toDocumentId
+  val reference =
+    Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id")) / "collection".toCollectionId / "document".toDocumentId
   val instant = Instant.parse("2004-05-06T07:08:09.101112Z")
   val bytes: Array[Byte] = Array(13, 14)
 
