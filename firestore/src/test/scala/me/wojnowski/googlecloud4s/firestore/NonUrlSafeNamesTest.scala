@@ -24,6 +24,7 @@ class NonUrlSafeNamesTest extends CatsEffectSuite with TestContainerForAll with 
   val containerDef: FirestoreEmulatorContainer.Def = FirestoreEmulatorContainer.Def()
 
   val projectId: ProjectId = ProjectId("project-id")
+  val databaseId: DatabaseId = DatabaseId.unsafe("database-id")
 
   import me.wojnowski.googlecloud4s.firestore.codec.circe._
 
@@ -34,7 +35,7 @@ class NonUrlSafeNamesTest extends CatsEffectSuite with TestContainerForAll with 
       withSttpBackend { backend =>
         val documentAPath =
           Reference
-            .Root(projectId)
+            .Root(projectId, databaseId)
             .collection("🤔".toCollectionId)
             .document("💡".toDocumentId)
             .collection("#".toCollectionId)
@@ -42,7 +43,7 @@ class NonUrlSafeNamesTest extends CatsEffectSuite with TestContainerForAll with 
 
         val value = JsonObject("foo" -> "bar".asJson)
 
-        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, uri.some)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, databaseId, uri.some)
 
         for {
           items1 <- Firestore[IO].stream[JsonObject](documentAPath.parent).compile.toList

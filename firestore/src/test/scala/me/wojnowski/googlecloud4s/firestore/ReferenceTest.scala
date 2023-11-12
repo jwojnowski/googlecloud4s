@@ -7,18 +7,25 @@ import munit.FunSuite
 
 class ReferenceTest extends FunSuite {
   test("Root") {
+    val rawName = "projects/project-id/databases/database-id/documents"
+    val result = Reference.parse(rawName)
+    val expected = Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id"))
+    assertEquals(result, Right(expected))
+  }
+
+  test("Root with default database") {
     val rawName = "projects/project-id/databases/(default)/documents"
     val result = Reference.parse(rawName)
-    val expected = Reference.Root(ProjectId("project-id"))
+    val expected = Reference.Root(ProjectId("project-id"), DatabaseId.default)
     assertEquals(result, Right(expected))
   }
 
   test("Without subcollections") {
-    val rawName = "projects/project-id/databases/(default)/documents/root-collection/Gh5Efo66qP8fRg4L2fuY"
+    val rawName = "projects/project-id/databases/database-id/documents/root-collection/Gh5Efo66qP8fRg4L2fuY"
     val result = Reference.parse(rawName)
     val expected =
       Reference.Document(
-        Reference.Collection(Reference.Root(ProjectId("project-id")), "root-collection".toCollectionId),
+        Reference.Collection(Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id")), "root-collection".toCollectionId),
         "Gh5Efo66qP8fRg4L2fuY".toDocumentId
       )
     assertEquals(result, Right(expected))
@@ -38,7 +45,7 @@ class ReferenceTest extends FunSuite {
 
   test("With subcollection") {
     val rawName =
-      "projects/project-id/databases/(default)/documents/collection-a/document-a/collection-b/document-b/collection-c/document-c"
+      "projects/project-id/databases/database-id/documents/collection-a/document-a/collection-b/document-b/collection-c/document-c"
     val result = Reference.parse(rawName)
     val expected =
       Reference.Document(
@@ -47,7 +54,7 @@ class ReferenceTest extends FunSuite {
             Reference.Collection(
               Reference.Document(
                 Reference.Collection(
-                  Reference.Root(ProjectId("project-id")),
+                  Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id")),
                   "collection-a".toCollectionId
                 ),
                 "document-a".toDocumentId
@@ -76,9 +83,9 @@ class ReferenceTest extends FunSuite {
   }
 
   test("Root toString") {
-    val path = Reference.Root(ProjectId("project-id"))
+    val path = Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id"))
     val result = path.full
-    val expected = "projects/project-id/databases/(default)/documents"
+    val expected = "projects/project-id/databases/database-id/documents"
     assertEquals(result, expected)
   }
 
@@ -89,7 +96,7 @@ class ReferenceTest extends FunSuite {
           Reference.Collection(
             Reference.Document(
               Reference.Collection(
-                Reference.Root(ProjectId("project-id")),
+                Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id")),
                 "collection-a".toCollectionId
               ),
               "document-a".toDocumentId
@@ -105,7 +112,7 @@ class ReferenceTest extends FunSuite {
 
     val result = path.full
     val expected =
-      "projects/project-id/databases/(default)/documents/collection-a/document-a/collection-b/document-b/collection-c/document-c"
+      "projects/project-id/databases/database-id/documents/collection-a/document-a/collection-b/document-b/collection-c/document-c"
 
     assertEquals(result, expected)
   }
@@ -114,7 +121,7 @@ class ReferenceTest extends FunSuite {
     val collectionId = "collection-a".toCollectionId
     val documentId = "document-a".toDocumentId
 
-    val path = Reference.Root(ProjectId("project-id"))
+    val path = Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id"))
 
     val result = path.collection(collectionId).document(documentId)
     val expected = Reference.Document(Reference.Collection(path, collectionId), documentId)
@@ -127,7 +134,7 @@ class ReferenceTest extends FunSuite {
     val collectionBId = "collection-a".toCollectionId
     val documentBId = "document-a".toDocumentId
 
-    val rootPath = Reference.Root(ProjectId("project-id"))
+    val rootPath = Reference.Root(ProjectId("project-id"), DatabaseId.unsafe("database-id"))
     val path = Reference.Document(Reference.Collection(rootPath, collectionAId), documentAId)
 
     val result = path.collection(collectionBId).document(documentBId)

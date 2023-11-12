@@ -16,6 +16,8 @@ sealed trait Reference extends Product with Serializable {
   def segments: NonEmptyChain[String]
 
   def contains(other: Reference): Boolean
+
+  def root: Reference.Root
 }
 
 object Reference {
@@ -26,13 +28,15 @@ object Reference {
     def /(collectionId: CollectionId): Reference.Collection = collection(collectionId)
   }
 
-  case class Root(projectId: ProjectId) extends NonCollection {
-    def segments: NonEmptyChain[String] = NonEmptyChain.of("projects", projectId.value, "databases", Firestore.defaultDatabase, "documents")
+  case class Root(projectId: ProjectId, databaseId: DatabaseId) extends NonCollection {
+    def segments: NonEmptyChain[String] = NonEmptyChain.of("projects", projectId.value, "databases", databaseId.value, "documents")
 
     override def contains(other: Reference): Boolean =
       other =!= this
 
     override def toString: String = full
+
+    override def root: Root = this
   }
 
   object Root {
@@ -46,6 +50,8 @@ object Reference {
 
     override def contains(other: Reference): Boolean =
       (other == this) || parent.contains(other)
+
+    override def root: Root = parent.root
   }
 
   object Document {
@@ -79,6 +85,13 @@ object Reference {
     def document(documentId: DocumentId): Reference.Document = Reference.Document(this, documentId)
 
     def /(documentId: DocumentId): Reference.Document = document(documentId)
+
+    override def root: Root =
+      parent match {
+        case root: Root           => root
+        case collection: Document => collection.root
+      }
+
   }
 
   implicit val eq: Eq[Reference] = Eq.instance {
@@ -96,7 +109,7 @@ object Reference {
       _                   <- Parser.char('/')
       _                   <- Parser.string("databases")
       _                   <- Parser.char('/')
-      _                   <- Parser.string(Firestore.defaultDatabase)
+      databaseId          <- DatabaseId.Parsing.parser
       _                   <- Parser.char('/')
       _                   <- Parser.string("documents")
       collectionNamePairs <- (CollectionId.parser.surroundedBy(Parser.char('/')) ~ DocumentId.parser).rep0
@@ -104,7 +117,7 @@ object Reference {
       _                   <- Parser.end
     } yield {
       val lastNonCollectionReference =
-        collectionNamePairs.foldLeft[Reference.NonCollection](Root(ProjectId(projectId))) {
+        collectionNamePairs.foldLeft[Reference.NonCollection](Root(ProjectId(projectId), databaseId)) {
           case (reference, (collectionId, documentName)) => Document(Collection(reference, collectionId), documentName)
         }
 

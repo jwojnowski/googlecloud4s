@@ -31,5 +31,5 @@ trait TestContainerUtils {
 }
 
 object TestContainerUtils {
-  val dockerImage: DockerImageName = DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:419.0.0-emulators")
+  val dockerImage: DockerImageName = DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:454.0.0-emulators")
 }

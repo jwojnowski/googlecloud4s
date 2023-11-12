@@ -14,8 +14,8 @@ import scala.concurrent.duration.DurationInt
 
 class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
 
-  val collectionA = Reference.Root(projectId).collection("collection-a".toCollectionId)
-  val collectionB = Reference.Root(projectId).collection("collection-b".toCollectionId)
+  val collectionA = Reference.Root(projectId, databaseId).collection("collection-a".toCollectionId)
+  val collectionB = Reference.Root(projectId, databaseId).collection("collection-b".toCollectionId)
 
   val document = Fields(
     "thisIsAString" -> Value.String("FOO"),
