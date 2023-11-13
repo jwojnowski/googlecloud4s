@@ -26,6 +26,7 @@ import xerial.sbt.Sonatype._
 ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
 ThisBuild / sonatypeRepository := "https://s01.oss.sonatype.org/service/local"
 ThisBuild / sonatypeProjectHosting := Some(GitHubHosting("jwojnowski", "googlecloud4s", "29680262+jwojnowski@users.noreply.github.com"))
+ThisBuild / versionScheme          := Some("early-semver")
 
 ThisBuild / homepage := Some(url("https://github.com/jwojnowski/googlecloud4s"))
 
