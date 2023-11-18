@@ -77,6 +77,12 @@ trait Firestore[F[_]] {
 
   def delete(reference: Reference.Document): F[Unit]
 
+  def listCollections(
+    reference: Reference.NonCollection,
+    pageSize: Option[Int] = None,
+    readTime: Option[Instant] = None
+  ): Stream[F, CollectionId]
+
   def rootReference: Reference.Root
 }
 
@@ -625,6 +631,76 @@ object Firestore {
       }.onError {
         case throwable =>
           Logger[F].error(throwable)(show"Failed to delete [$reference] due to ${throwable.toString}")
+      }
+
+      override def listCollections(
+        reference: Reference.NonCollection,
+        pageSize: Option[Int],
+        readTime: Option[Instant]
+      ): Stream[F, CollectionId] = {
+        def fetchPage(maybePageToken: Option[String]): F[(List[CollectionId], Option[String])] = {
+          val requestBody =
+            JsonObject(
+              "pageSize" := pageSize,
+              "pageToken" := maybePageToken,
+              "readTime" := readTime
+            ).asJson.dropNullValues
+
+          for {
+            _        <- Logger[F].debug(
+                          show"Fetching a page of collections at [$reference] with read time [${readTime.toString}] " +
+                            show"and page size [$pageSize] with page token [$maybePageToken]"
+                        )
+            token    <- getToken
+            response <- sttpBackend
+                          .send {
+                            basicRequest
+                              .post(createUri(reference, ":listCollectionIds"))
+                              .header("Authorization", s"Bearer ${token.value}")
+                              .header(createGoogleRequestParamsHeader(reference))
+                              .body(requestBody)
+                              .response(asJson[HCursor])
+                          }
+                          .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
+                          .flatMap { response =>
+                            Sync[F].fromEither {
+                              response
+                                .body
+                                .flatMap { body =>
+                                  (
+                                    body.downField("collectionIds").as[Option[List[CollectionId]]].map(_.getOrElse(List.empty)),
+                                    body.downField("nextPageToken").as[Option[String]]
+                                  ).tupled
+                                }
+                                .leftMap(error => Error.UnexpectedResponse(s"Expected success, got: [$response], error: $error"))
+                            }
+                          }
+            _        <- Logger[F].debug(
+                          show"Fetched a page of [${response._1.size}] collections at [$reference] with read time [${readTime.toString}], " +
+                            show"and page size [$pageSize] with page token [$maybePageToken]"
+                        )
+          } yield response
+        }
+
+        Stream
+          .eval(
+            Logger[F].debug(show"Listing collections at [$reference] with read time [${readTime.toString}] and page size [$pageSize]...")
+          )
+          .drain ++
+          Stream
+            .unfoldLoopEval(none[String]) { maybePageToken =>
+              fetchPage(maybePageToken).map {
+                case (collectionIds, nextPageToken) => (Chunk.seq(collectionIds), nextPageToken.map(_.some))
+              }
+            }
+            .unchunks
+      }.onError {
+        case throwable =>
+          Stream.eval(
+            Logger[F].error(throwable)(
+              show"Failed to list collections at [$reference] with read time [${readTime.toString}] and page size [$pageSize] due to ${throwable.toString}"
+            )
+          )
       }
 
       private def extractReference(documentJson: Json): Either[Error.UnexpectedResponse, Reference.Document] =
