@@ -28,6 +28,10 @@ object Reference {
     def /(collectionId: CollectionId): Reference.Collection = collection(collectionId)
   }
 
+  object NonCollection {
+    implicit val show: Show[Reference.NonCollection] = Show.show(_.full)
+  }
+
   case class Root(projectId: ProjectId, databaseId: DatabaseId) extends NonCollection {
     def segments: NonEmptyChain[String] = NonEmptyChain.of("projects", projectId.value, "databases", databaseId.value, "documents")
 

@@ -8,6 +8,8 @@ import cats.data.NonEmptyList
 import cats.data.NonEmptyMap
 import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
 
+import java.time.Instant
+
 object FirestoreDsl {
 
   implicit class FirestoreOps[F[_]](firestore: Firestore[F]) {
@@ -37,6 +39,11 @@ object FirestoreDsl {
   }
 
   implicit class ImplicitDocumentReferenceOps[F[_]: Firestore](val document: Reference.Document) extends DocumentReferenceOps[F] {
+    def firestore: Firestore[F] = Firestore[F]
+  }
+
+  implicit class ImplicitNonCollectionReferenceOps[F[_]: Firestore](val nonCollection: Reference.NonCollection)
+    extends NonCollectionReferenceOps[F] {
     def firestore: Firestore[F] = Firestore[F]
   }
 
@@ -79,6 +86,14 @@ object FirestoreDsl {
     def updateM[V: FirestoreCodec](f: V => F[V]): F[Option[V]] = firestore.updateM(document, f)
 
     def delete: F[Unit] = firestore.delete(document)
+  }
+
+  trait NonCollectionReferenceOps[F[_]] {
+    def nonCollection: Reference.NonCollection
+    def firestore: Firestore[F]
+
+    def listCollections(pageSize: Option[Int] = None, readTime: Option[Instant] = None): Stream[F, CollectionId] =
+      firestore.listCollections(nonCollection, pageSize, readTime)
   }
 
   implicit class BatchGetOps[F[_]](references: NonEmptyList[Reference.Document])(implicit firestore: Firestore[F]) {
