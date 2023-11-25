@@ -28,14 +28,12 @@ import fs2.Chunk
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import me.wojnowski.googlecloud4s.ProductSerializableNoStacktrace
-import me.wojnowski.googlecloud4s.ProjectId
 import me.wojnowski.googlecloud4s.auth.AccessToken
 import me.wojnowski.googlecloud4s.auth.Scopes
 import me.wojnowski.googlecloud4s.firestore.Firestore.FieldFilter.Operator
 import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Firestore.Order.Direction
 import me.wojnowski.googlecloud4s.firestore.codec.FirestoreCodec
-import me.wojnowski.googlecloud4s.firestore.Value
 import sttp.model.Header
 import sttp.model.StatusCode
 import sttp.model.Uri
@@ -56,9 +54,12 @@ trait Firestore[F[_]] {
   /** @return old version, the last before successfully applying f */
   def updateM[V: FirestoreCodec](reference: Reference.Document, f: V => F[V]): F[Option[V]]
 
-  def batchGet[V: FirestoreCodec](paths: NonEmptyList[Reference.Document]): F[NonEmptyMap[Reference.Document, Option[V]]]
+  def batchGet[V: FirestoreCodec](
+    rootReference: Reference.Root,
+    paths: NonEmptyList[Reference.Document]
+  ): F[NonEmptyMap[Reference.Document, Option[V]]]
 
-  def batchWrite(writes: NonEmptyList[Write], labels: Map[String, String] = Map.empty): F[BatchWriteResponse]
+  def batchWrite(rootReference: Reference.Root, writes: NonEmptyList[Write], labels: Map[String, String] = Map.empty): F[BatchWriteResponse]
 
   // TODO create some Query class
   def stream[V: FirestoreCodec](
@@ -77,13 +78,21 @@ trait Firestore[F[_]] {
 
   def delete(reference: Reference.Document): F[Unit]
 
+  // TODO rename to listCollectionIds
   def listCollections(
     reference: Reference.NonCollection,
     pageSize: Option[Int] = None,
     readTime: Option[Instant] = None
   ): Stream[F, CollectionId]
 
-  def rootReference: Reference.Root
+  // TODO Refine and make public
+  private[firestore] def listDocuments[V](
+    reference: Reference.Collection,
+    showMissing: Boolean,
+    pageSize: Option[Int] = None,
+    readTime: Option[Instant] = None
+  ): Stream[F, (Reference.Document, Option[Fields])]
+
 }
 
 object Firestore {
@@ -99,6 +108,7 @@ object Firestore {
     case class UnexpectedResponse(override val getMessage: String) extends Error
     case class UnexpectedError(override val getMessage: String) extends Error
     case class DecodingFailure(cause: Throwable) extends Exception(cause) with Error
+    case class TargetIsInSource(source: Reference, target: Reference) extends Error
     case class EncodingFailure(override val getMessage: String) extends Error
     case class ReferencesDontMatchRoot(notMatchingReferences: NonEmptyList[Reference.Document], root: Reference.Root)
       extends IllegalArgumentException(s"References [$notMatchingReferences] don't match project root [$root]")
@@ -187,8 +197,6 @@ object Firestore {
 
   def instance[F[_]: Sync: TokenProvider](
     sttpBackend: SttpBackend[F, Any],
-    projectId: ProjectId,
-    databaseId: DatabaseId = DatabaseId.default,
     uriOverride: Option[String Refined refined.string.Uri] = None,
     optimisticLockingAttempts: Int = 16
   ): Firestore[F] =
@@ -200,8 +208,6 @@ object Firestore {
 
       val baseUri = uriOverride.fold(uri"https://firestore.googleapis.com")(u => uri"$u")
       val scope = Scopes("https://www.googleapis.com/auth/datastore")
-
-      override def rootReference: Reference.Root = Reference.Root(projectId, databaseId)
 
       private def getToken: F[AccessToken] =
         TokenProvider[F].getAccessToken(scope).adaptError {
@@ -293,10 +299,11 @@ object Firestore {
       }
 
       override def batchGet[V: FirestoreCodec](
+        rootReference: Reference.Root,
         paths: NonEmptyList[Reference.Document]
       ): F[NonEmptyMap[Reference.Document, Option[V]]] =
         for {
-          _           <- Sync[F].fromEither(validateReferencesAgainstProjectRoot(paths))
+          _           <- Sync[F].fromEither(validateReferencesAgainstProjectRoot(rootReference, paths))
           _           <- Logger[F].debug(s"Getting in a batch documents [$paths]...")
           token       <- getToken
           results     <- sttpBackend
@@ -340,13 +347,18 @@ object Firestore {
         } yield nonEmptyMap
 
       private def validateReferencesAgainstProjectRoot(
+        rootReference: Reference.Root,
         references: NonEmptyList[Reference.Document]
       ): Either[Error.ReferencesDontMatchRoot, Unit] = {
-        val notMatchingReferences = references.filter(_.contains(rootReference))
+        val notMatchingReferences = references.filter(!_.contains(rootReference))
         notMatchingReferences.toNel.toRight(()).swap.leftMap(Error.ReferencesDontMatchRoot(_, rootReference))
       }
 
-      override def batchWrite(writes: NonEmptyList[Write], labels: Map[String, String]): F[BatchWriteResponse] = {
+      override def batchWrite(
+        rootReference: Reference.Root,
+        writes: NonEmptyList[Write],
+        labels: Map[String, String]
+      ): F[BatchWriteResponse] = {
         for {
           _        <- Logger[F].debug(s"Executing batch write with [${writes.size}] writes.")
           token    <- getToken
@@ -699,6 +711,93 @@ object Firestore {
           Stream.eval(
             Logger[F].error(throwable)(
               show"Failed to list collections at [$reference] with read time [${readTime.toString}] and page size [$pageSize] due to ${throwable.toString}"
+            )
+          )
+      }
+
+      private[firestore] def listDocuments[V](
+        reference: Reference.Collection,
+        showMissing: Boolean,
+        pageSize: Option[Int] = None,
+        readTime: Option[Instant] = None
+      ): Stream[F, (Reference.Document, Option[Fields])] = {
+        def fetchPage(maybePageToken: Option[String]) =
+          for {
+            _        <- Logger[F].debug(
+                          show"Fetching a page of documents at [$reference] with show missing [$showMissing] " +
+                            show"and page size [$pageSize] with page token [$maybePageToken] and readTime [${readTime.toString}]..."
+                        )
+            token    <- getToken
+            request = basicRequest
+                        .get(
+                          createUri(reference)
+                            .addParams(
+                              Map("showMissing" -> showMissing.toString) ++
+                                pageSize.map("pageSize" -> _.toString) ++
+                                readTime.map("readTime" -> _.toString) ++
+                                maybePageToken.map("pageToken" -> _)
+                            )
+                            .querySegmentsEncoding(Uri.QuerySegmentEncoding.All)
+                        )
+                        .header("Authorization", s"Bearer ${token.value}")
+                        .header(createGoogleRequestParamsHeader(reference))
+                        .response(asJson[HCursor])
+            response <- sttpBackend
+                          .send {
+                            request
+                          }
+                          .adaptError { case NonFatal(throwable) => Error.CommunicationError(throwable) }
+                          .flatMap { response =>
+                            Sync[F].fromEither {
+                              response
+                                .body
+                                .flatMap { body =>
+                                  (
+                                    body
+                                      .downField("documents")
+                                      .as[Option[Chain[HCursor]]]
+                                      .map(_.getOrElse(Chain.empty))
+                                      .flatMap(_.traverse { cursor =>
+                                        (
+                                          cursor.downField("name").as[Reference.Document],
+                                          cursor.downField("fields").as[Option[Fields]]
+                                        ).tupled
+                                      }),
+                                    body
+                                      .downField("nextPageToken")
+                                      .as[Option[String]]
+                                      .leftMap(error => Error.UnexpectedResponse(s"Expected success, got: [$response], error: $error"))
+                                  ).tupled
+                                }
+                            }
+                          }
+            _        <- Logger[F].debug(
+                          show"Fetched a page of [${response._1.size}] documents at [$reference] with show missing [$showMissing], " +
+                            show"and page size [$pageSize] with page token [$maybePageToken] and read time [${readTime.toString}]"
+                        )
+          } yield response
+
+        Stream
+          .eval(
+            Logger[F].debug(
+              show"Listing documents at [$reference] with show missing [$showMissing] " +
+                show"and page size [$pageSize] and read time [${readTime.toString}]..."
+            )
+          )
+          .drain ++
+          Stream
+            .unfoldLoopEval(none[String]) { maybePageToken =>
+              fetchPage(maybePageToken).map {
+                case (collectionIds, nextPageToken) => (Chunk.chain(collectionIds), nextPageToken.map(_.some))
+              }
+            }
+            .unchunks
+      }.onError {
+        case throwable =>
+          Stream.eval(
+            Logger[F].error(throwable)(
+              show"Failed to list documents at [$reference] with show missing [$showMissing] " +
+                show"and page size [$pageSize] and read time [${readTime.toString}] due to ${throwable.toString}"
             )
           )
       }

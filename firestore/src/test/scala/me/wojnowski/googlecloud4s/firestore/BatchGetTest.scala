@@ -10,6 +10,7 @@ import me.wojnowski.googlecloud4s.ProjectId
 import me.wojnowski.googlecloud4s.auth.TokenProvider
 import me.wojnowski.googlecloud4s.firestore.Helpers.CollectionIdString
 import me.wojnowski.googlecloud4s.firestore.Helpers.ShortNameString
+import FirestoreDsl._
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.DurationInt
@@ -38,12 +39,12 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
       withSttpBackend { backend =>
         val attempts = 3
 
-        val firestore = Firestore.instance[IO](backend, projectId, databaseId, uri.some, optimisticLockingAttempts = attempts)
+        implicit val firestore = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
 
         for {
           _                  <- firestore.set(collectionA.document(documentAName), TestDocumentWithCounter(counter = 0))
           documentBReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
-          results            <- firestore.batchGet[TestDocumentWithCounter](
+          results            <- (firestore / projectId / databaseId).batchGet[TestDocumentWithCounter](
                                   NonEmptyList.of(collectionA.document(documentAName), collectionA.document(documentBReference.documentId))
                                 )
         } yield assertEquals(
@@ -62,12 +63,12 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
       withSttpBackend { backend =>
         val attempts = 3
 
-        val firestore = Firestore.instance[IO](backend, projectId, databaseId, uri.some, optimisticLockingAttempts = attempts)
+        implicit val firestore = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
 
         for {
           documentAReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
           documentBReference <- firestore.add(collectionB, TestDocumentWithCounter(counter = 0))
-          results            <- firestore.batchGet[TestDocumentWithCounter](
+          results            <- (firestore / projectId / databaseId).batchGet[TestDocumentWithCounter](
                                   NonEmptyList.of(documentAReference, documentBReference)
                                 )
         } yield assertEquals(
@@ -86,21 +87,23 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
       withSttpBackend { backend =>
         val attempts = 3
 
-        val firestore = Firestore.instance[IO](backend, projectId, databaseId, uri.some, optimisticLockingAttempts = attempts)
+        implicit val firestore = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
 
         val referenceFromDifferentProject =
           Reference.Root(ProjectId("other-project-id"), databaseId).collection(collectionB.collectionId).document("document-b".toDocumentId)
 
         for {
           documentAReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
-          result             <- firestore
+          result             <- (firestore / projectId / databaseId)
                                   .batchGet[TestDocumentWithCounter](
                                     NonEmptyList.of(documentAReference, referenceFromDifferentProject)
                                   )
                                   .attempt
         } yield assertEquals(
           result,
-          Left(Firestore.Error.ReferencesDontMatchRoot(NonEmptyList.of(referenceFromDifferentProject), firestore.rootReference))
+          Left(
+            Firestore.Error.ReferencesDontMatchRoot(NonEmptyList.of(referenceFromDifferentProject), Reference.Root(projectId, databaseId))
+          )
         )
       }
     }
@@ -111,11 +114,11 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
       withSttpBackend { backend =>
         val attempts = 3
 
-        val firestore = Firestore.instance[IO](backend, projectId, databaseId, uri.some, optimisticLockingAttempts = attempts)
+        implicit val firestore = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
 
         for {
           _       <- firestore.set(collectionA.document(documentAName), TestDocumentWithCounter(counter = 0))
-          results <- firestore.batchGet[TestDocumentWithCounter](
+          results <- (firestore / projectId / databaseId).batchGet[TestDocumentWithCounter](
                        NonEmptyList.of(collectionA.document(documentAName), collectionA.document(nonExistentDocumentName))
                      )
         } yield assertEquals(

@@ -38,7 +38,7 @@ class OptimisticLockingTest extends CatsEffectSuite with TestContainerForAll wit
 
         val attempts = 3
 
-        val firestore = Firestore.instance[IO](recordingBackend, projectId, databaseId, uri.some, optimisticLockingAttempts = attempts)
+        val firestore = Firestore.instance[IO](recordingBackend, uri.some, optimisticLockingAttempts = attempts)
 
         for {
           path   <- firestore.add(collection, TestDocumentWithCounter(counter = 0))

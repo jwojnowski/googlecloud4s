@@ -36,7 +36,7 @@ class CollectionListTest extends CatsEffectSuite with FirestoreTestContainer {
   test("no collections to list (root level)") {
     withFirestore { implicit firestore =>
       for {
-        collectionIds <- firestore.rootReference.listCollections().compile.toList
+        collectionIds <- (firestore / projectId / databaseId).listCollections().compile.toList
       } yield assertEquals(collectionIds, List.empty)
     }
   }
@@ -54,7 +54,7 @@ class CollectionListTest extends CatsEffectSuite with FirestoreTestContainer {
     withFirestore { implicit firestore =>
       for {
         _             <- createCollections
-        collectionIds <- firestore.rootReference.listCollections().compile.toList
+        collectionIds <- (firestore / projectId / databaseId).listCollections().compile.toList
       } yield assertEquals(collectionIds, rootLevelCollections.map(_.collectionId))
     }
   }
@@ -63,7 +63,7 @@ class CollectionListTest extends CatsEffectSuite with FirestoreTestContainer {
     withFirestore { implicit firestore =>
       for {
         _             <- createCollections
-        collectionIds <- firestore.rootReference.listCollections(pageSize = Some(2)).compile.toList
+        collectionIds <- (firestore / projectId / databaseId).listCollections(pageSize = Some(2)).compile.toList
       } yield assertEquals(collectionIds, rootLevelCollections.map(_.collectionId))
     }
   }

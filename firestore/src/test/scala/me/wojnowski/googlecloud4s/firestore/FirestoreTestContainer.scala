@@ -28,7 +28,7 @@ trait FirestoreTestContainer extends TestContainerForAll with TestContainerUtils
   def withFirestore(f: Firestore[IO] => IO[Unit]): IO[Unit] =
     withContainerUri { uri =>
       withSttpBackend { backend =>
-        f(Firestore.instance[IO](backend, projectId, databaseId, uri.some))
+        f(Firestore.instance[IO](backend, uri.some))
       }
     }
 
