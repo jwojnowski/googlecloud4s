@@ -37,7 +37,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
   test("Cursors with orderBy parameters") {
     withContainerUri { uri =>
       withSttpBackend { backend =>
-        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, databaseId, uri.some)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, uri.some)
 
         val collection = Reference.Root(projectId, databaseId).collection("test-collection".toCollectionId)
 
@@ -75,7 +75,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
         val documentAPath = rootCollection.document("document-a".toDocumentId)
         val documentBPath = rootCollection.document("document-b".toDocumentId)
 
-        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, databaseId, uri.some)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, uri.some)
 
         val rootA = JsonObject("foo" -> "rootA".asJson)
         val rootB = JsonObject("foo" -> "rootB".asJson)
@@ -111,7 +111,7 @@ class StreamingTest extends CatsEffectSuite with TestContainerForAll with TestCo
         val subCollectionId = "collection-y".toCollectionId
         val documentAPath = Reference.Root(projectId, databaseId).collection(rootCollectionId).document("document-a".toDocumentId)
 
-        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, databaseId, uri.some)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, uri.some)
 
         for {
           items <- Firestore[IO].stream[JsonObject](documentAPath.collection(subCollectionId)).compile.toList

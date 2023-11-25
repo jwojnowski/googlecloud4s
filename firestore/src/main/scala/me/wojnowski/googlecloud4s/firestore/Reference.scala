@@ -29,6 +29,13 @@ object Reference {
   }
 
   object NonCollection {
+
+    def parse(raw: String): Either[ParsingError, Reference.NonCollection] =
+      Reference.parse(raw).flatMap {
+        case reference: Reference.NonCollection => Right(reference)
+        case _                                  => Left(new ParsingError("expected non-collection path"))
+      }
+
     implicit val show: Show[Reference.NonCollection] = Show.show(_.full)
   }
 
@@ -36,7 +43,7 @@ object Reference {
     def segments: NonEmptyChain[String] = NonEmptyChain.of("projects", projectId.value, "databases", databaseId.value, "documents")
 
     override def contains(other: Reference): Boolean =
-      other =!= this
+      other === this
 
     override def toString: String = full
 
@@ -96,6 +103,10 @@ object Reference {
         case collection: Document => collection.root
       }
 
+  }
+
+  object Collection {
+    implicit val show: Show[Reference.Collection] = Show.show(_.full)
   }
 
   implicit val eq: Eq[Reference] = Eq.instance {

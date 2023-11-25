@@ -43,7 +43,7 @@ class NonUrlSafeNamesTest extends CatsEffectSuite with TestContainerForAll with 
 
         val value = JsonObject("foo" -> "bar".asJson)
 
-        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, projectId, databaseId, uri.some)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, uri.some)
 
         for {
           items1 <- Firestore[IO].stream[JsonObject](documentAPath.parent).compile.toList

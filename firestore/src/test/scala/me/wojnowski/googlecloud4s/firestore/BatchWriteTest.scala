@@ -8,6 +8,7 @@ import me.wojnowski.googlecloud4s.firestore.Firestore.FirestoreDocument.Fields
 import me.wojnowski.googlecloud4s.firestore.Helpers.CollectionIdString
 import me.wojnowski.googlecloud4s.firestore.Helpers.ShortNameString
 import munit.CatsEffectSuite
+import FirestoreDsl._
 
 import java.time.Instant
 import scala.concurrent.duration.DurationInt
@@ -43,7 +44,7 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
         _               <- firestore.set(documentAC, document)
         _               <- firestore.set(documentBA, document)
         _               <- firestore.set(documentBB, document)
-        _               <- firestore.batchWrite(NonEmptyList.of(Write.Delete(documentAB), Write.Delete(documentBA)))
+        _               <- (firestore / projectId / databaseId).batchWrite(NonEmptyList.of(Write.Delete(documentAB), Write.Delete(documentBA)))
         collectionADocs <- firestore.streamLogFailures[Fields](collectionA).compile.toList
         collectionBDocs <- firestore.streamLogFailures[Fields](collectionB).compile.toList
       } yield {
@@ -63,7 +64,7 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
         _        <- firestore.set(documentAE, document)
         _        <- firestore.set(documentAF, document)
         _        <- firestore.set(documentAG, document)
-        response <- firestore.batchWrite(
+        response <- (firestore / projectId / databaseId).batchWrite(
                       NonEmptyList.of(
                         Write.DocumentTransform(
                           documentAA,
@@ -155,7 +156,7 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
     withFirestore { firestore =>
       for {
         _        <- firestore.set(documentAA, document)
-        response <- firestore.batchWrite(
+        response <- (firestore / projectId / databaseId).batchWrite(
                       NonEmptyList.of(
                         Write.Update(
                           documentAA,
@@ -190,7 +191,7 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
     withFirestore { firestore =>
       for {
         _        <- firestore.set(documentAA, document)
-        response <- firestore.batchWrite(
+        response <- (firestore / projectId / databaseId).batchWrite(
                       NonEmptyList.of(
                         Write.Update(
                           documentAA,
@@ -227,7 +228,7 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
     withFirestore { firestore =>
       for {
         _        <- firestore.set(documentAA, originalValues)
-        response <- firestore.batchWrite(
+        response <- (firestore / projectId / databaseId).batchWrite(
                       NonEmptyList.of(
                         Write.Update(
                           documentAA,
@@ -260,7 +261,7 @@ class BatchWriteTest extends CatsEffectSuite with FirestoreTestContainer {
       for {
         _        <- firestore.set(documentAA, document)
         _        <- firestore.set(documentAB, document)
-        response <- firestore.batchWrite(
+        response <- (firestore / projectId / databaseId).batchWrite(
                       NonEmptyList.of(
                         Write.Update(
                           documentAA,
