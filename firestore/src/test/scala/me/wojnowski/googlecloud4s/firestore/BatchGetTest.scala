@@ -39,7 +39,7 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
       withSttpBackend { backend =>
         val attempts = 3
 
-        implicit val firestore = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
 
         for {
           _                  <- firestore.set(collectionA.document(documentAName), TestDocumentWithCounter(counter = 0))
@@ -63,7 +63,7 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
       withSttpBackend { backend =>
         val attempts = 3
 
-        implicit val firestore = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
 
         for {
           documentAReference <- firestore.add(collectionA, TestDocumentWithCounter(counter = 0))
@@ -87,7 +87,7 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
       withSttpBackend { backend =>
         val attempts = 3
 
-        implicit val firestore = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
 
         val referenceFromDifferentProject =
           Reference.Root(ProjectId("other-project-id"), databaseId).collection(collectionB.collectionId).document("document-b".toDocumentId)
@@ -114,7 +114,7 @@ class BatchGetTest extends CatsEffectSuite with TestContainerForAll with TestCon
       withSttpBackend { backend =>
         val attempts = 3
 
-        implicit val firestore = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
+        implicit val firestore: Firestore[IO] = Firestore.instance[IO](backend, uri.some, optimisticLockingAttempts = attempts)
 
         for {
           _       <- firestore.set(collectionA.document(documentAName), TestDocumentWithCounter(counter = 0))
