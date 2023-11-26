@@ -56,7 +56,7 @@ object Copy {
           _ <- Sync[F].raiseWhen(target.contains(source) && readTime.isEmpty)(Firestore.Error.TargetIsInSource(source, target))
           _ <- Logger[F].debug(show"Copying recursively [$source] to [$target]...")
           _ <- firestore
-                 .listCollections(source, readTime = readTime)
+                 .listCollectionIds(source, readTime = readTime)
                  .evalMap(collectionId => copyRecursively(source / collectionId, target / collectionId, chunkSize, readTime))
                  .compile
                  .drain
