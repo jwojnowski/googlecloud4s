@@ -79,7 +79,7 @@ trait Firestore[F[_]] {
   def delete(reference: Reference.Document): F[Unit]
 
   // TODO rename to listCollectionIds
-  def listCollections(
+  def listCollectionIds(
     reference: Reference.NonCollection,
     pageSize: Option[Int] = None,
     readTime: Option[Instant] = None
@@ -645,7 +645,7 @@ object Firestore {
           Logger[F].error(throwable)(show"Failed to delete [$reference] due to ${throwable.toString}")
       }
 
-      override def listCollections(
+      override def listCollectionIds(
         reference: Reference.NonCollection,
         pageSize: Option[Int],
         readTime: Option[Instant]

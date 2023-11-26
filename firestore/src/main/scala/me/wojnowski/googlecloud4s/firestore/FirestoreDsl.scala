@@ -105,8 +105,8 @@ object FirestoreDsl {
     def reference: Reference.NonCollection
     def firestore: Firestore[F]
 
-    def listCollections(pageSize: Option[Int] = None, readTime: Option[Instant] = None): Stream[F, CollectionId] =
-      firestore.listCollections(reference, pageSize, readTime)
+    def listCollectionIds(pageSize: Option[Int] = None, readTime: Option[Instant] = None): Stream[F, CollectionId] =
+      firestore.listCollectionIds(reference, pageSize, readTime)
 
     def batchGet[V: FirestoreCodec](references: NonEmptyList[Reference.Document]): F[NonEmptyMap[Reference.Document, Option[V]]] =
       firestore.batchGet(reference.root, references)
